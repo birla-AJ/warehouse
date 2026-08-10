@@ -1,0 +1,819 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────
+// ORGANIZATION (multi-tenant root)
+// ─────────────────────────────────────────────────────────
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  gstNumber String?
+  users     User[]
+  warehouses Warehouse[]
+  farmers    Farmer[]
+  billingRules BillingRule[]
+  settings     Setting[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────────────────
+// AUTH / USERS / RBAC
+// ─────────────────────────────────────────────────────────
+model User {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name         String
+  email        String?      @unique
+  mobile       String?      @unique
+  passwordHash String
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  status UserStatus @default(ACTIVE)
+
+  otpCode      String?
+  otpExpiresAt DateTime?
+
+  devices       Device[]
+  refreshTokens RefreshToken[]
+  employee      Employee?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Device {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  deviceName   String?
+  userAgent    String?
+  ipAddress    String?
+  lastActiveAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String
+  isSystem    Boolean          @default(false)
+  users       User[]
+  permissions RolePermission[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([name])
+  @@map("roles")
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  module String // e.g. "inventory"
+  action String // e.g. "create" | "read" | "update" | "delete" | custom verb
+  scope  String? // e.g. "own" | "warehouse" | "org"
+
+  roles RolePermission[]
+
+  @@unique([module, action, scope])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ─────────────────────────────────────────────────────────
+// WAREHOUSES & LOCATION HIERARCHY
+// Warehouse → Zone → Block → Row → Rack → Level → Position
+// ─────────────────────────────────────────────────────────
+model Warehouse {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  name          String
+  code          String        @unique // short code used as locationCode prefix, e.g. "WH1"
+  address       String?
+  capacityUnit  String        @default("bags") // "bags" | "tonnes" | custom
+  totalCapacity Decimal       @default(0)
+
+  zones Zone[]
+  cameras Camera[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@map("warehouses")
+}
+
+model Zone {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  code        String // e.g. "A"
+  name        String?
+  blocks      Block[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([warehouseId, code])
+  @@map("zones")
+}
+
+model Block {
+  id        String    @id @default(uuid())
+  zoneId    String
+  zone      Zone      @relation(fields: [zoneId], references: [id])
+  code      String // e.g. "2"
+  name      String?
+  rows      Row[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([zoneId, code])
+  @@map("blocks")
+}
+
+model Row {
+  id        String    @id @default(uuid())
+  blockId   String
+  block     Block     @relation(fields: [blockId], references: [id])
+  code      String
+  name      String?
+  racks     Rack[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([blockId, code])
+  @@map("rows")
+}
+
+model Rack {
+  id        String    @id @default(uuid())
+  rowId     String
+  row       Row       @relation(fields: [rowId], references: [id])
+  code      String // e.g. "3"
+  name      String?
+  levels    Level[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([rowId, code])
+  @@map("racks")
+}
+
+model Level {
+  id        String     @id @default(uuid())
+  rackId    String
+  rack      Rack       @relation(fields: [rackId], references: [id])
+  code      String // e.g. "4"
+  name      String?
+  positions Position[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  deletedAt DateTime?
+
+  @@unique([rackId, code])
+  @@map("levels")
+}
+
+model Position {
+  id           String         @id @default(uuid())
+  levelId      String
+  level        Level          @relation(fields: [levelId], references: [id])
+  code         String // e.g. "12"
+  locationCode String         @unique // full denormalized path, e.g. WH1-ZA-B2-RW1-RK3-L4-P12
+  status       PositionStatus @default(EMPTY)
+  capacity     Decimal        @default(1) // max bags/units this position can hold
+  currentLoad  Decimal        @default(0)
+
+  bags Bag[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([levelId, code])
+  @@index([locationCode])
+  @@index([status])
+  @@map("positions")
+}
+
+enum PositionStatus {
+  EMPTY
+  PARTIAL
+  FULL
+  DISABLED
+}
+
+// ─────────────────────────────────────────────────────────
+// FARMERS
+// ─────────────────────────────────────────────────────────
+model Farmer {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  farmerCode String  @unique
+  photoUrl   String?
+
+  name       String
+  fatherName String?
+  village    String?
+  district   String?
+  state      String?
+  address    String?
+
+  mobile     String
+  altMobile  String?
+  email      String?
+
+  // Sensitive identifiers — encrypted at rest via EncryptionUtil before persisting
+  aadhaarNumberEnc String?
+  panNumber        String?
+  gstNumber        String?
+  bankAccountNoEnc String?
+  bankIfsc         String?
+  upiId            String?
+
+  nomineeName            String?
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+
+  documents Document[]
+  bags      Bag[]
+  weighbridgeEntries WeighbridgeEntry[]
+  invoices  Invoice[]
+  payments  Payment[]
+  dispatches Dispatch[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@index([mobile])
+  @@map("farmers")
+}
+
+// ─────────────────────────────────────────────────────────
+// CROPS & BAG TYPES
+// ─────────────────────────────────────────────────────────
+model Crop {
+  id              String   @id @default(uuid())
+  name            String   @unique
+  moisturePercent Decimal?
+  storageType     String?
+  shelfLifeDays   Int?
+  idealTempC      Decimal?
+  idealHumidity   Decimal?
+  defaultCharge   Decimal?
+  images          String[]
+  notes           String?
+
+  allowedBagTypes CropBagType[]
+  bags            Bag[]
+  billingRules    BillingRule[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("crops")
+}
+
+model BagType {
+  id       String  @id @default(uuid())
+  label    String  @unique // e.g. "50 KG", "Loose"
+  weightKg Decimal
+
+  crops CropBagType[]
+  bags  Bag[]
+
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  @@map("bag_types")
+}
+
+model CropBagType {
+  cropId    String
+  bagTypeId String
+  crop      Crop    @relation(fields: [cropId], references: [id])
+  bagType   BagType @relation(fields: [bagTypeId], references: [id])
+
+  @@id([cropId, bagTypeId])
+  @@map("crop_bag_types")
+}
+
+// ─────────────────────────────────────────────────────────
+// DOCUMENTS (generic attachment, extended per-module later)
+// ─────────────────────────────────────────────────────────
+model Document {
+  id         String   @id @default(uuid())
+  farmerId   String?
+  farmer     Farmer?  @relation(fields: [farmerId], references: [id])
+  entityType String? // optional generic link when not farmer-specific, e.g. "dispatch", "bag", "invoice"
+  entityId   String?
+  type       String // AADHAAR/PAN/INVOICE/GATE_PASS/QUALITY_REPORT/etc
+  fileName   String?
+  mimeType   String?
+  fileUrl    String
+  uploadedById String?
+  createdAt  DateTime @default(now())
+
+  @@index([farmerId])
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+// ─────────────────────────────────────────────────────────
+// WEIGHBRIDGE
+// ─────────────────────────────────────────────────────────
+model WeighbridgeEntry {
+  id          String   @id @default(uuid())
+  slipNumber  String   @unique
+  vehicleNo   String
+  direction   String // IN | OUT
+  grossWeight Decimal
+  tareWeight  Decimal
+  netWeight   Decimal
+  farmerId    String?
+  farmer      Farmer?  @relation(fields: [farmerId], references: [id])
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([vehicleNo])
+  @@map("weighbridge_entries")
+}
+
+// ─────────────────────────────────────────────────────────
+// BAGS, QUALITY, INVENTORY MOVEMENTS
+// ─────────────────────────────────────────────────────────
+model Bag {
+  id           String  @id @default(uuid())
+  bagCode      String  @unique
+  qrCode       String  @unique
+
+  farmerId String
+  farmer   Farmer  @relation(fields: [farmerId], references: [id])
+  cropId   String
+  crop     Crop    @relation(fields: [cropId], references: [id])
+  bagTypeId String
+  bagType   BagType @relation(fields: [bagTypeId], references: [id])
+
+  batchId  String?
+  grade    Grade   @default(A)
+  weightKg Decimal
+
+  positionId String?
+  position   Position? @relation(fields: [positionId], references: [id])
+
+  status     BagStatus @default(IN_STORAGE)
+  receivedAt DateTime  @default(now())
+
+  movements      InventoryMovement[]
+  qualityReports QualityReport[]
+  dispatchBags   DispatchBag[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([farmerId])
+  @@index([cropId])
+  @@index([status])
+  @@index([positionId])
+  @@map("bags")
+}
+
+enum BagStatus {
+  IN_STORAGE
+  RESERVED
+  DISPATCHED
+  DAMAGED
+}
+
+enum Grade {
+  PREMIUM
+  A
+  B
+  C
+  REJECTED
+}
+
+model InventoryMovement {
+  id            String       @id @default(uuid())
+  bagId         String
+  bag           Bag          @relation(fields: [bagId], references: [id])
+  type          MovementType
+  fromPositionId String?
+  toPositionId   String?
+  quantity      Decimal      @default(1)
+  note          String?
+  performedById String?
+  createdAt     DateTime     @default(now())
+
+  @@index([bagId])
+  @@index([createdAt])
+  @@map("inventory_movements")
+}
+
+enum MovementType {
+  RECEIVE
+  TRANSFER
+  ADJUST
+  DAMAGE
+  LOSS
+  DISPATCH
+}
+
+model QualityReport {
+  id            String   @id @default(uuid())
+  bagId         String
+  bag           Bag      @relation(fields: [bagId], references: [id])
+  moisture      Decimal?
+  damagePercent Decimal?
+  brokenPercent Decimal?
+  rottenPercent Decimal?
+  foreignMatter Decimal?
+  grade         Grade
+  inspectorId   String?
+  remarks       String?
+  photos        String[]
+  createdAt     DateTime @default(now())
+
+  @@index([bagId])
+  @@map("quality_reports")
+}
+
+// ─────────────────────────────────────────────────────────
+// BILLING & PAYMENTS
+// ─────────────────────────────────────────────────────────
+model BillingRule {
+  id                 String   @id @default(uuid())
+  organizationId     String
+  organization       Organization @relation(fields: [organizationId], references: [id])
+  cropId             String?
+  crop               Crop?    @relation(fields: [cropId], references: [id])
+  name               String
+  ratePerBagPerDay   Decimal  @default(0)
+  ratePerKgPerDay    Decimal  @default(0)
+  handlingCharge     Decimal  @default(0)
+  loadingCharge      Decimal  @default(0)
+  unloadingCharge    Decimal  @default(0)
+  packingCharge      Decimal  @default(0)
+  cleaningCharge     Decimal  @default(0)
+  sortingCharge      Decimal  @default(0)
+  insuranceCharge    Decimal  @default(0)
+  gstPercent         Decimal  @default(0)
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  deletedAt          DateTime?
+
+  @@index([organizationId])
+  @@map("billing_rules")
+}
+
+model Invoice {
+  id            String   @id @default(uuid())
+  invoiceNumber String   @unique
+  farmerId      String
+  farmer        Farmer   @relation(fields: [farmerId], references: [id])
+  periodFrom    DateTime
+  periodTo      DateTime
+  charges       Json // itemized breakdown: [{ bagId, cropName, days, rate, amount }, ...]
+  subtotal      Decimal
+  gstAmount     Decimal  @default(0)
+  discount      Decimal  @default(0)
+  penalty       Decimal  @default(0)
+  totalAmount   Decimal
+  status        InvoiceStatus @default(PENDING)
+  pdfUrl        String?
+  payments      Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([farmerId])
+  @@index([status])
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+model Payment {
+  id          String   @id @default(uuid())
+  invoiceId   String?
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id])
+  farmerId    String
+  farmer      Farmer   @relation(fields: [farmerId], references: [id])
+  amount      Decimal
+  type        PaymentTransactionType @default(PAYMENT)
+  method      PaymentMethod
+  referenceNo String?
+  note        String?
+  receiptNo   String   @unique
+  createdAt   DateTime @default(now())
+
+  @@index([farmerId])
+  @@index([invoiceId])
+  @@map("payments")
+}
+
+enum PaymentTransactionType {
+  PAYMENT
+  REFUND
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  CHEQUE
+  CARD
+}
+
+// ─────────────────────────────────────────────────────────
+// DISPATCH
+// ─────────────────────────────────────────────────────────
+model Dispatch {
+  id             String   @id @default(uuid())
+  dispatchNumber String   @unique
+  farmerId       String
+  farmer         Farmer   @relation(fields: [farmerId], references: [id])
+
+  vehicleNo    String
+  driverName   String
+  driverMobile String
+
+  dispatchType String // PARTIAL | FULL
+  status       DispatchStatus @default(PENDING)
+
+  otpCodeHash  String?
+  otpExpiresAt DateTime?
+  otpVerified  Boolean  @default(false)
+
+  gatePassUrl String?
+
+  bags DispatchBag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([farmerId])
+  @@map("dispatches")
+}
+
+enum DispatchStatus {
+  PENDING
+  VERIFIED
+  COMPLETED
+  CANCELLED
+}
+
+model DispatchBag {
+  dispatchId String
+  bagId      String
+  dispatch   Dispatch @relation(fields: [dispatchId], references: [id])
+  bag        Bag      @relation(fields: [bagId], references: [id])
+
+  @@id([dispatchId, bagId])
+  @@map("dispatch_bags")
+}
+
+// ─────────────────────────────────────────────────────────
+// NOTIFICATIONS & PASSWORD RESET
+// ─────────────────────────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?
+  farmerId  String?
+  channel   String // EMAIL | SMS | WHATSAPP | PUSH
+  type      String // e.g. "OTP", "STOCK_RECEIVED", "INVOICE_GENERATED", "PAYMENT_DUE", "DISPATCH_COMPLETED"
+  recipient String // email address or phone number the notification was sent to
+  payload   Json
+  status    String   @default("PENDING") // PENDING | SENT | FAILED
+  error     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([farmerId])
+  @@index([type])
+  @@map("notifications")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ─────────────────────────────────────────────────────────
+// CCTV
+// ─────────────────────────────────────────────────────────
+model Camera {
+  id          String    @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+
+  name         String
+  brand        String?
+  cameraType   String? // FIXED | PTZ | DOME | etc
+  rtspUrl      String
+  onvifDetails Json?
+  username     String?
+  passwordEnc  String? // encrypted via EncryptionUtil, same as Farmer sensitive fields
+  assignedTo   String? // e.g. "Entry Gate", "Block A", "Dispatch Area"
+
+  status          CameraStatus @default(OFFLINE)
+  lastHealthCheckAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([warehouseId])
+  @@index([status])
+  @@map("cameras")
+}
+
+enum CameraStatus {
+  ONLINE
+  OFFLINE
+  MAINTENANCE
+}
+
+// ─────────────────────────────────────────────────────────
+// EMPLOYEES
+// ─────────────────────────────────────────────────────────
+model Employee {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id])
+  employeeCode String   @unique
+  designation  String?
+  shift        String? // e.g. "Morning (6AM-2PM)", "Night (10PM-6AM)"
+  salary       Decimal?
+  joinDate     DateTime?
+
+  attendance    Attendance[]
+  leaveRequests LeaveRequest[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("employees")
+}
+
+model Attendance {
+  id         String           @id @default(uuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id])
+  date       DateTime
+  status     AttendanceStatus
+  checkInAt  DateTime?
+  checkOutAt DateTime?
+  note       String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@map("attendance")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+model LeaveRequest {
+  id         String      @id @default(uuid())
+  employeeId String
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  fromDate   DateTime
+  toDate     DateTime
+  reason     String?
+  status     LeaveStatus @default(PENDING)
+  decidedById String?
+  decidedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([employeeId])
+  @@map("leave_requests")
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─────────────────────────────────────────────────────────
+// SETTINGS (generic org-scoped key-value registry)
+// ─────────────────────────────────────────────────────────
+model Setting {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  key            String // e.g. "company_profile", "tax_defaults", "theme", "language", "notification_preferences"
+  value          Json
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@unique([organizationId, key])
+  @@map("settings")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  module    String
+  entityId  String?
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  device    String?
+  browser   String?
+  createdAt DateTime @default(now())
+
+  @@index([module, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
