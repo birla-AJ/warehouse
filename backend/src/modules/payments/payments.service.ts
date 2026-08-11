@@ -1,4 +1,6 @@
+
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreatePaymentDto, RefundPaymentDto } from './dto/payment.dto';
 
@@ -7,7 +9,9 @@ export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
   async create(dto: CreatePaymentDto) {
-    let invoice = null;
+    let invoice: Prisma.InvoiceGetPayload<{
+      include: { payments: true };
+    }> | null = null;
     if (dto.invoiceId) {
       invoice = await this.prisma.invoice.findUnique({ where: { id: dto.invoiceId }, include: { payments: true } });
       if (!invoice) throw new NotFoundException('Invoice not found');
@@ -77,11 +81,20 @@ export class PaymentsService {
         receiptNo,
       },
     });
-
-    if (original.invoiceId) {
+    if (original.invoiceId && original.invoice) {
       const newNet = netPaid - dto.amount;
-      const status = newNet <= 0 ? 'PENDING' : newNet < Number(original.invoice.totalAmount) ? 'PARTIAL' : 'PAID';
-      await this.prisma.invoice.update({ where: { id: original.invoiceId }, data: { status } });
+    
+      const status =
+        newNet <= 0
+          ? 'PENDING'
+          : newNet < Number(original.invoice.totalAmount)
+            ? 'PARTIAL'
+            : 'PAID';
+    
+      await this.prisma.invoice.update({
+        where: { id: original.invoiceId },
+        data: { status },
+      });
     }
 
     return refund;

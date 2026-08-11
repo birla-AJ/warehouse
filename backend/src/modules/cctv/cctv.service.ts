@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { EncryptionUtil } from '../../common/utils/encryption.util';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -60,11 +61,24 @@ export class CctvService {
 
   async update(id: string, dto: UpdateCameraDto) {
     await this.getById(id);
-    const { password, ...rest } = dto;
+  
+    const { password, onvifDetails, ...rest } = dto;
+  
     const camera = await this.prisma.camera.update({
       where: { id },
-      data: { ...rest, passwordEnc: password ? EncryptionUtil.encrypt(password) : undefined },
+      data: {
+        ...rest,
+        ...(onvifDetails !== undefined
+          ? {
+              onvifDetails: onvifDetails as Prisma.InputJsonValue,
+            }
+          : {}),
+        passwordEnc: password
+          ? EncryptionUtil.encrypt(password)
+          : undefined,
+      },
     });
+  
     return this.sanitize(camera);
   }
 

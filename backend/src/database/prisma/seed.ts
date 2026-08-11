@@ -48,7 +48,12 @@ async function main() {
   });
 
   // Seed permissions: one row per module/action combination
-  const permissionRecords = [];
+  const permissionRecords: Array<{
+    id: string;
+    module: string;
+    action: string;
+    scope: string | null;
+  }> = [];
   for (const module of MODULES) {
     for (const action of ACTIONS) {
       const perm = await prisma.permission.upsert({
