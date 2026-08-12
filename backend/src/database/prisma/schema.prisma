@@ -396,16 +396,16 @@ model Document {
 model WeighbridgeEntry {
   id             String   @id @default(uuid())
   slipNumber     String   @unique
-  organizationId String
-  vehicleNo   String
-  direction   String // IN | OUT
-  grossWeight Decimal
-  tareWeight  Decimal
-  netWeight   Decimal
-  farmerId    String?
-  farmer      Farmer?  @relation(fields: [farmerId], references: [id])
-  notes       String?
-  createdAt   DateTime @default(now())
+  organizationId String?
+  vehicleNo      String
+  direction      String
+  grossWeight    Decimal
+  tareWeight     Decimal
+  netWeight      Decimal
+  farmerId       String?
+  farmer         Farmer?  @relation(fields: [farmerId], references: [id])
+  notes          String?
+  createdAt      DateTime @default(now())
 
   @@index([vehicleNo])
   @@index([organizationId])
