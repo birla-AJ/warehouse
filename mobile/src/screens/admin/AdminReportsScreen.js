@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import RNFS from 'react-native-fs';
@@ -21,11 +21,19 @@ export function AdminReportsScreen() {
     try {
       const buffer = await downloadReport(key, format);
       const base64 = arrayBufferToBase64(buffer);
-      const path = `${RNFS.DocumentDirectoryPath}/${key}-report.${format}`;
+      const filename = `${key}-report.${format}`;
+      const path = `${RNFS.CachesDirectoryPath}/${filename}`;
       await RNFS.writeFile(path, base64, 'base64');
-      Alert.alert(t('common.confirm'), path);
-    } catch {
-      Alert.alert(t('common.somethingWentWrong'));
+      // A raw filesystem path means nothing to a real user — they have no
+      // Files-app-style way to act on it from an Alert. Hand it to the OS
+      // share sheet instead so they can actually save it to Drive/Files,
+      // email it, or open it in Excel/Sheets.
+      const fileUri = `file://${path}`;
+      await Share.share({ url: fileUri, message: filename }, { subject: filename });
+    } catch (error) {
+      if (error?.message !== 'User did not share') {
+        Alert.alert(t('common.somethingWentWrong'), t('common.networkError'));
+      }
     } finally {
       setDownloadingKey(null);
     }
@@ -45,6 +53,9 @@ export function AdminReportsScreen() {
                 style={[styles.pill, { borderColor: colors.primary }]}
                 onPress={() => handleExport(key, 'csv')}
                 disabled={downloadingKey === `${key}-csv`}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('reports.exportCsv')} ${t(`reports.${toCamel(key)}`)}`}
+                accessibilityState={{ disabled: downloadingKey === `${key}-csv`, busy: downloadingKey === `${key}-csv` }}
               >
                 <Icon name="file-delimited-outline" size={16} color={colors.primary} />
                 <Text style={[typography.caption, { color: colors.primary, marginLeft: 4 }]}>{t('reports.exportCsv')}</Text>
@@ -53,6 +64,9 @@ export function AdminReportsScreen() {
                 style={[styles.pill, { borderColor: colors.primary }]}
                 onPress={() => handleExport(key, 'xlsx')}
                 disabled={downloadingKey === `${key}-xlsx`}
+                accessibilityRole="button"
+                accessibilityLabel={`${t('reports.exportExcel')} ${t(`reports.${toCamel(key)}`)}`}
+                accessibilityState={{ disabled: downloadingKey === `${key}-xlsx`, busy: downloadingKey === `${key}-xlsx` }}
               >
                 <Icon name="file-excel-outline" size={16} color={colors.primary} />
                 <Text style={[typography.caption, { color: colors.primary, marginLeft: 4 }]}>{t('reports.exportExcel')}</Text>

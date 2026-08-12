@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RbacGuard } from './common/guards/rbac.guard';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesPermissionsModule } from './modules/roles-permissions/roles-permissions.module';
@@ -83,6 +85,21 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
   providers: [
     PrismaService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // Auth-by-default: every route requires a valid JWT unless explicitly
+    // marked @Public() (see src/common/decorators/public.decorator.ts).
+    // RbacGuard then checks @Permissions() on top of that, and is a no-op
+    // on routes that don't declare any (auth-only routes).
+    //
+    // This was previously registered inside AuthModule instead of here.
+    // NestJS applies APP_GUARD globally regardless of which module
+    // declares it, so it WAS enforced — but burying it in a feature module
+    // means anyone auditing security posture from this file (the natural
+    // place to look) would wrongly conclude nothing was enforced. Moved
+    // here as the single, visible source of truth. Order matters:
+    // JwtAuthGuard must run before RbacGuard so `request.user` exists by
+    // the time RbacGuard reads it.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RbacGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

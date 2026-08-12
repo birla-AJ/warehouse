@@ -18,61 +18,70 @@ export class EmployeesController {
 
   @Get('employees')
   @Permissions({ module: 'employees', action: 'read' })
-  list() {
-    return this.service.list();
+  list(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.list(user.organizationId);
   }
 
   @Get('employees/:id')
   @Permissions({ module: 'employees', action: 'read' })
-  getById(@Param('id') id: string) {
-    return this.service.getById(id);
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getById(id, user.organizationId);
   }
 
   @Post('employees')
   @Permissions({ module: 'employees', action: 'create' })
-  create(@Body() dto: CreateEmployeeDto) {
-    return this.service.create(dto);
+  create(@Body() dto: CreateEmployeeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.create(user.organizationId, dto);
   }
 
   @Patch('employees/:id')
   @Permissions({ module: 'employees', action: 'update' })
-  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateEmployeeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.update(id, user.organizationId, dto);
   }
 
   @Delete('employees/:id')
   @Permissions({ module: 'employees', action: 'delete' })
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user.organizationId);
   }
 
   @Post('employees/:id/attendance')
   @Permissions({ module: 'employees', action: 'update' })
-  markAttendance(@Param('id') employeeId: string, @Body() dto: Omit<MarkAttendanceDto, 'employeeId'>) {
-    return this.service.markAttendance({ ...dto, employeeId });
+  markAttendance(
+    @Param('id') employeeId: string,
+    @Body() dto: Omit<MarkAttendanceDto, 'employeeId'>,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.markAttendance(user.organizationId, { ...dto, employeeId });
   }
 
   @Get('attendance')
   @Permissions({ module: 'employees', action: 'read' })
-  listAttendance(@Query('employeeId') employeeId?: string, @Query('from') from?: string, @Query('to') to?: string) {
-    return this.service.listAttendance(employeeId, from, to);
+  listAttendance(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('employeeId') employeeId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.listAttendance(user.organizationId, employeeId, from, to);
   }
 
   @Post('leave-requests')
   @Permissions({ module: 'employees', action: 'create' })
-  requestLeave(@Body() dto: RequestLeaveDto) {
-    return this.service.requestLeave(dto);
+  requestLeave(@Body() dto: RequestLeaveDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.requestLeave(user.organizationId, dto);
   }
 
   @Get('leave-requests')
   @Permissions({ module: 'employees', action: 'read' })
-  listLeaves(@Query('employeeId') employeeId?: string, @Query('status') status?: string) {
-    return this.service.listLeaves(employeeId, status);
+  listLeaves(@CurrentUser() user: AuthenticatedUser, @Query('employeeId') employeeId?: string, @Query('status') status?: string) {
+    return this.service.listLeaves(user.organizationId, employeeId, status);
   }
 
   @Patch('leave-requests/:id/decide')
   @Permissions({ module: 'employees', action: 'update' })
   decideLeave(@Param('id') id: string, @Body() dto: DecideLeaveDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.decideLeave(id, dto, user.id);
+    return this.service.decideLeave(id, user.organizationId, dto, user.id);
   }
 }

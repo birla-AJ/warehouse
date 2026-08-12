@@ -29,7 +29,20 @@ export function AdminTabNavigator() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabInactive,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopWidth: 0,
+          borderTopLeftRadius: 22,
+          borderTopRightRadius: 22,
+          height: 64,
+          paddingTop: 6,
+          shadowColor: '#122F2C',
+          shadowOpacity: 0.12,
+          shadowRadius: 16,
+          shadowOffset: { width: 0, height: -4 },
+          elevation: 12,
+        },
+        tabBarLabelStyle: { fontWeight: '600', fontSize: 11 },
         tabBarIcon: ({ color, size }) => <Icon name={ICONS[route.name]} color={color} size={size} />,
       })}
     >

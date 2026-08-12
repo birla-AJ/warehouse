@@ -3,6 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { RolesPermissionsService } from './roles-permissions.service';
 import { CreateRoleDto, UpdateRolePermissionsDto } from './dto/role.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
+import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('roles-permissions')
 @Controller()
@@ -11,8 +12,8 @@ export class RolesPermissionsController {
 
   @Get('roles')
   @Permissions({ module: 'settings', action: 'read' })
-  listRoles() {
-    return this.service.listRoles();
+  listRoles(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listRoles(user.organizationId);
   }
 
   @Get('permissions')
@@ -23,19 +24,19 @@ export class RolesPermissionsController {
 
   @Post('roles')
   @Permissions({ module: 'settings', action: 'create' })
-  createRole(@Body() dto: CreateRoleDto) {
-    return this.service.createRole(dto);
+  createRole(@Body() dto: CreateRoleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.createRole(user.organizationId, dto);
   }
 
   @Patch('roles/:id/permissions')
   @Permissions({ module: 'settings', action: 'update' })
-  updateRolePermissions(@Param('id') id: string, @Body() dto: UpdateRolePermissionsDto) {
-    return this.service.updateRolePermissions(id, dto);
+  updateRolePermissions(@Param('id') id: string, @Body() dto: UpdateRolePermissionsDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.updateRolePermissions(id, user.organizationId, dto);
   }
 
   @Delete('roles/:id')
   @Permissions({ module: 'settings', action: 'delete' })
-  deleteRole(@Param('id') id: string) {
-    return this.service.deleteRole(id);
+  deleteRole(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.deleteRole(id, user.organizationId);
   }
 }

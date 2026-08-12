@@ -19,8 +19,18 @@ export class DispatchService {
   ) {}
 
   /** Initiates a dispatch: validates ownership/status, reserves bags, and OTPs the farmer. */
-  async create(dto: CreateDispatchDto, performedById?: string) {
-    const bags = await this.prisma.bag.findMany({ where: { id: { in: dto.bagIds }, deletedAt: null } });
+  async create(organizationId: string, dto: CreateDispatchDto, performedById?: string) {
+    // Every bag AND the dispatching farmer must belong to the caller's
+    // organization — without this, an org A user could dispatch org B's
+    // bags out by supplying their IDs directly (bag IDs are opaque UUIDs
+    // to a client, but not secret — they show up in list responses,
+    // exported reports, etc., so "unguessable" isn't a safety boundary).
+    const farmer = await this.prisma.farmer.findFirst({ where: { id: dto.farmerId, organizationId } });
+    if (!farmer) throw new NotFoundException('Farmer not found');
+
+    const bags = await this.prisma.bag.findMany({
+      where: { id: { in: dto.bagIds }, deletedAt: null, farmer: { organizationId } },
+    });
 
     if (bags.length !== dto.bagIds.length) {
       throw new NotFoundException('One or more bags were not found');
@@ -35,7 +45,7 @@ export class DispatchService {
     }
 
     for (const bag of bags) {
-      await this.bagsService.reserve(bag.id);
+      await this.bagsService.reserve(bag.id, organizationId);
     }
 
     const otp = crypto.randomInt(100000, 999999).toString();
@@ -69,9 +79,9 @@ export class DispatchService {
     return { ...dispatch, otpCodeHash: undefined };
   }
 
-  async verifyOtp(id: string, dto: VerifyDispatchOtpDto, performedById?: string) {
-    const dispatch = await this.prisma.dispatch.findUnique({
-      where: { id },
+  async verifyOtp(id: string, organizationId: string, dto: VerifyDispatchOtpDto, performedById?: string) {
+    const dispatch = await this.prisma.dispatch.findFirst({
+      where: { id, farmer: { organizationId } },
       include: { bags: true },
     });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
@@ -88,7 +98,7 @@ export class DispatchService {
     if (dto.scannedBagCodes && dto.scannedBagCodes.length > 0) {
       const dispatchBagIds = dispatch.bags.map((b) => b.bagId);
       const scannedBags = await this.prisma.bag.findMany({
-        where: { qrCode: { in: dto.scannedBagCodes } },
+        where: { qrCode: { in: dto.scannedBagCodes }, farmer: { organizationId } },
         select: { id: true, bagCode: true },
       });
       const scannedIds = new Set(scannedBags.map((b) => b.id));
@@ -102,7 +112,7 @@ export class DispatchService {
     }
 
     for (const { bagId } of dispatch.bags) {
-      await this.bagsService.markDispatched(bagId, performedById);
+      await this.bagsService.markDispatched(bagId, organizationId, performedById);
     }
 
     const gatePassUrl = `pending-render:${dispatch.dispatchNumber}`; // wired to Documents module later
@@ -114,31 +124,31 @@ export class DispatchService {
     });
   }
 
-  async cancel(id: string) {
-    const dispatch = await this.prisma.dispatch.findUnique({ where: { id }, include: { bags: true } });
+  async cancel(id: string, organizationId: string) {
+    const dispatch = await this.prisma.dispatch.findFirst({ where: { id, farmer: { organizationId } }, include: { bags: true } });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
     if (dispatch.status !== 'PENDING') {
       throw new BadRequestException('Only a PENDING dispatch can be cancelled');
     }
 
     for (const { bagId } of dispatch.bags) {
-      await this.bagsService.unreserve(bagId);
+      await this.bagsService.unreserve(bagId, organizationId);
     }
 
     return this.prisma.dispatch.update({ where: { id }, data: { status: 'CANCELLED' } });
   }
 
-  async getById(id: string) {
-    const dispatch = await this.prisma.dispatch.findUnique({
-      where: { id },
+  async getById(id: string, organizationId: string) {
+    const dispatch = await this.prisma.dispatch.findFirst({
+      where: { id, farmer: { organizationId } },
       include: { bags: { include: { bag: { include: { crop: true } } } }, farmer: true },
     });
     if (!dispatch) throw new NotFoundException('Dispatch not found');
     return { ...dispatch, otpCodeHash: undefined };
   }
 
-  async getGatePass(id: string) {
-    const dispatch = await this.getById(id);
+  async getGatePass(id: string, organizationId: string) {
+    const dispatch = await this.getById(id, organizationId);
     if (dispatch.status !== 'COMPLETED') {
       throw new BadRequestException('Gate pass is only available for a completed dispatch');
     }
@@ -146,8 +156,8 @@ export class DispatchService {
   }
 
   /** Real PDF rendering (pdfkit) — replaces the earlier raw-JSON stub. */
-  async getGatePassPdf(id: string): Promise<Buffer> {
-    const dispatch = await this.getGatePass(id);
+  async getGatePassPdf(id: string, organizationId: string): Promise<Buffer> {
+    const dispatch = await this.getGatePass(id, organizationId);
     return PdfUtil.renderGatePass({
       dispatchNumber: dispatch.dispatchNumber,
       vehicleNo: dispatch.vehicleNo,
@@ -163,8 +173,8 @@ export class DispatchService {
     });
   }
 
-  list(farmerId?: string, page = 1, limit = 20) {
-    const where = farmerId ? { farmerId } : {};
+  list(organizationId: string, farmerId?: string, page = 1, limit = 20) {
+    const where = { farmer: { organizationId }, ...(farmerId ? { farmerId } : {}) };
     return Promise.all([
       this.prisma.dispatch.findMany({
         where,

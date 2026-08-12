@@ -52,9 +52,23 @@ apiClient.interceptors.response.use(
   },
 );
 
-/** Pulls a human-readable message out of a NestJS error response. */
-export function apiErrorMessage(error, fallback = 'Something went wrong') {
-  const message = error?.response?.data?.message;
+/**
+ * Pulls a human-readable message out of a NestJS error response.
+ *
+ * Returns an i18n KEY ('common.networkError' / 'common.somethingWentWrong')
+ * for our own fallback cases — callers must t() it. When the backend sent
+ * an actual message, that text is returned as-is: it's plain English from
+ * the NestJS DTO layer (e.g. "Invalid email/mobile or password"), and
+ * translating it would require the backend to return i18n keys instead of
+ * literal strings — a separate, backend-side effort not covered here.
+ */
+export function apiErrorMessage(error, fallback = 'common.somethingWentWrong') {
+  if (!error?.response) {
+    // No `response` means the request never got a reply — offline, timed
+    // out, or the server is unreachable, distinct from a 4xx/5xx reply.
+    return 'common.networkError';
+  }
+  const message = error.response.data?.message;
   if (Array.isArray(message)) return message.join(', ');
   return message ?? fallback;
 }

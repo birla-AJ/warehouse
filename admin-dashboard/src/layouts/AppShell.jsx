@@ -7,26 +7,30 @@ import {
 import MenuIcon from '@mui/icons-material/Menu';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
-import WarehouseIcon from '@mui/icons-material/Warehouse';
 import LogoutIcon from '@mui/icons-material/Logout';
 import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/NotificationsOutlined';
 import PersonIcon from '@mui/icons-material/PersonOutline';
+import { useTranslation } from 'react-i18next';
 import { useAppDispatch, useAppSelector } from '../hooks/redux';
 import { toggleThemeMode, toggleDrawer } from '../app/slices/uiSlice';
 import { useLogout } from '../modules/auth/auth.api';
 import { useMyPermissions } from '../modules/auth/auth.api';
 import { navItems } from './navItems';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { AwmsLogo } from '../assets/AwmsLogo';
+import { brandGradient } from '../theme/theme';
 
 const DRAWER_WIDTH = 248;
 
 function CommandPalette({ open, onClose }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(
-    () => navItems.filter((item) => item.label.toLowerCase().includes(query.toLowerCase())),
-    [query],
+    () => navItems.filter((item) => t(item.labelKey).toLowerCase().includes(query.toLowerCase())),
+    [query, t],
   );
 
   useEffect(() => {
@@ -41,7 +45,7 @@ function CommandPalette({ open, onClose }) {
           <InputBase
             autoFocus
             fullWidth
-            placeholder="Jump to a module…"
+            placeholder={t('layout.jumpToModulePlaceholder')}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -61,13 +65,13 @@ function CommandPalette({ open, onClose }) {
               <ListItemIcon sx={{ minWidth: 36 }}>
                 <Icon fontSize="small" />
               </ListItemIcon>
-              <ListItemText primary={item.label} />
+              <ListItemText primary={t(item.labelKey)} />
             </ListItemButton>
           );
         })}
         {filtered.length === 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ px: 2, py: 3, textAlign: 'center' }}>
-            No matching module.
+            {t('layout.noMatchingModule')}
           </Typography>
         )}
       </List>
@@ -76,6 +80,7 @@ function CommandPalette({ open, onClose }) {
 }
 
 export function AppShell() {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const location = useLocation();
   const themeMode = useAppSelector((s) => s.ui.themeMode);
@@ -110,10 +115,9 @@ export function AppShell() {
           <IconButton edge="start" onClick={() => dispatch(toggleDrawer())}>
             <MenuIcon />
           </IconButton>
-          <WarehouseIcon color="primary" />
-          <Typography variant="h6" fontWeight={800} sx={{ mr: 2 }}>
-            AWMS
-          </Typography>
+          <Box sx={{ mr: 2 }}>
+            <AwmsLogo size={30} textSx={{ fontSize: '1.15rem' }} />
+          </Box>
 
           <Box
             onClick={() => setPaletteOpen(true)}
@@ -135,7 +139,7 @@ export function AppShell() {
           >
             <SearchIcon fontSize="small" />
             <Typography variant="body2" sx={{ flexGrow: 1 }}>
-              Search modules…
+              {t('layout.searchModulesPlaceholder')}
             </Typography>
             <Typography variant="caption" sx={{ opacity: 0.6 }}>
               ⌘K
@@ -144,34 +148,48 @@ export function AppShell() {
 
           <Box sx={{ flexGrow: 1 }} />
 
-          <Tooltip title={themeMode === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}>
+          <LanguageSwitcher />
+          <Tooltip title={themeMode === 'light' ? t('layout.switchToDarkMode') : t('layout.switchToLightMode')}>
             <IconButton onClick={() => dispatch(toggleThemeMode())}>
               {themeMode === 'light' ? <Brightness4Icon /> : <Brightness7Icon />}
             </IconButton>
           </Tooltip>
-          <Tooltip title="Notifications">
+          <Tooltip title={t('layout.notifications')}>
             <IconButton component={RouterLink} to="/notifications">
-              <Badge color="secondary" variant="dot">
+              <Badge
+                color="secondary"
+                variant="dot"
+                sx={{ '& .MuiBadge-dot': { animation: 'awmsPulse 2s ease-in-out infinite' } }}
+              >
                 <NotificationsIcon />
               </Badge>
             </IconButton>
           </Tooltip>
           <IconButton onClick={(e) => setMenuAnchor(e.currentTarget)}>
-            <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main', fontSize: 14 }}>
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+                fontSize: 14,
+                backgroundImage: brandGradient,
+                color: '#fff',
+                boxShadow: '0 4px 12px -3px rgba(11,31,26,0.5)',
+              }}
+            >
               <PersonIcon fontSize="small" />
             </Avatar>
           </IconButton>
           <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
-            <MenuItem disabled>{user?.roleName ?? 'Unknown role'}</MenuItem>
+            <MenuItem disabled>{user?.roleName ?? t('auth.unknownRole')}</MenuItem>
             <Divider />
             <MenuItem component={RouterLink} to="/profile" onClick={() => setMenuAnchor(null)}>
-              Profile & change password
+              {t('layout.profileAndPassword')}
             </MenuItem>
             <MenuItem onClick={logout}>
               <ListItemIcon>
                 <LogoutIcon fontSize="small" />
               </ListItemIcon>
-              Sign out
+              {t('auth.signOut')}
             </MenuItem>
           </Menu>
         </Toolbar>
@@ -203,7 +221,7 @@ export function AppShell() {
                   <Icon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText
-                  primary={item.label}
+                  primary={t(item.labelKey)}
                   primaryTypographyProps={{ fontSize: 14, fontWeight: selected ? 700 : 500 }}
                 />
               </ListItemButton>

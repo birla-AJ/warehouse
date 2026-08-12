@@ -1,6 +1,4 @@
-
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { CreatePaymentDto, RefundPaymentDto } from './dto/payment.dto';
 
@@ -8,12 +6,16 @@ import { CreatePaymentDto, RefundPaymentDto } from './dto/payment.dto';
 export class PaymentsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: CreatePaymentDto) {
-    let invoice: Prisma.InvoiceGetPayload<{
-      include: { payments: true };
-    }> | null = null;
+  async create(organizationId: string, dto: CreatePaymentDto) {
+    const farmer = await this.prisma.farmer.findFirst({ where: { id: dto.farmerId, organizationId } });
+    if (!farmer) throw new NotFoundException('Farmer not found');
+
+    let invoice = null;
     if (dto.invoiceId) {
-      invoice = await this.prisma.invoice.findUnique({ where: { id: dto.invoiceId }, include: { payments: true } });
+      invoice = await this.prisma.invoice.findFirst({
+        where: { id: dto.invoiceId, farmer: { organizationId } },
+        include: { payments: true },
+      });
       if (!invoice) throw new NotFoundException('Invoice not found');
       if (invoice.farmerId !== dto.farmerId) {
         throw new BadRequestException('Invoice does not belong to this farmer');
@@ -52,9 +54,9 @@ export class PaymentsService {
    * history must stay intact for audit purposes). Recomputes the invoice
    * status from the net of all payments minus refunds.
    */
-  async refund(paymentId: string, dto: RefundPaymentDto) {
-    const original = await this.prisma.payment.findUnique({
-      where: { id: paymentId },
+  async refund(paymentId: string, organizationId: string, dto: RefundPaymentDto) {
+    const original = await this.prisma.payment.findFirst({
+      where: { id: paymentId, farmer: { organizationId } },
       include: { invoice: { include: { payments: true } } },
     });
     if (!original) throw new NotFoundException('Payment not found');
@@ -81,27 +83,18 @@ export class PaymentsService {
         receiptNo,
       },
     });
-    if (original.invoiceId && original.invoice) {
+
+    if (original.invoiceId) {
       const newNet = netPaid - dto.amount;
-    
-      const status =
-        newNet <= 0
-          ? 'PENDING'
-          : newNet < Number(original.invoice.totalAmount)
-            ? 'PARTIAL'
-            : 'PAID';
-    
-      await this.prisma.invoice.update({
-        where: { id: original.invoiceId },
-        data: { status },
-      });
+      const status = newNet <= 0 ? 'PENDING' : newNet < Number(original.invoice.totalAmount) ? 'PARTIAL' : 'PAID';
+      await this.prisma.invoice.update({ where: { id: original.invoiceId }, data: { status } });
     }
 
     return refund;
   }
 
-  list(farmerId?: string, page = 1, limit = 20) {
-    const where = farmerId ? { farmerId } : {};
+  list(organizationId: string, farmerId?: string, page = 1, limit = 20) {
+    const where = { farmer: { organizationId }, ...(farmerId ? { farmerId } : {}) };
     return Promise.all([
       this.prisma.payment.findMany({
         where,
@@ -114,7 +107,10 @@ export class PaymentsService {
     ]).then(([items, total]) => ({ items, meta: { page, limit, total } }));
   }
 
-  async farmerOutstanding(farmerId: string) {
+  async farmerOutstanding(farmerId: string, organizationId: string) {
+    const farmer = await this.prisma.farmer.findFirst({ where: { id: farmerId, organizationId } });
+    if (!farmer) throw new NotFoundException('Farmer not found');
+
     const invoices = await this.prisma.invoice.findMany({
       where: { farmerId, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
       include: { payments: true },

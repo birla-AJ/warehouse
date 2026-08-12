@@ -6,8 +6,8 @@ import { CreateQualityReportDto } from './dto/quality.dto';
 export class QualityService {
   constructor(private prisma: PrismaService) {}
 
-  async createForBag(bagId: string, dto: CreateQualityReportDto, inspectorId?: string) {
-    const bag = await this.prisma.bag.findFirst({ where: { id: bagId, deletedAt: null } });
+  async createForBag(bagId: string, organizationId: string, dto: CreateQualityReportDto, inspectorId?: string) {
+    const bag = await this.prisma.bag.findFirst({ where: { id: bagId, deletedAt: null, farmer: { organizationId } } });
     if (!bag) throw new NotFoundException('Bag not found');
 
     const [report] = await this.prisma.$transaction([
@@ -31,8 +31,8 @@ export class QualityService {
     return report;
   }
 
-  list(bagId?: string, page = 1, limit = 20) {
-    const where = bagId ? { bagId } : {};
+  list(organizationId: string, bagId?: string, page = 1, limit = 20) {
+    const where = { bag: { farmer: { organizationId } }, ...(bagId ? { bagId } : {}) };
     return Promise.all([
       this.prisma.qualityReport.findMany({
         where,

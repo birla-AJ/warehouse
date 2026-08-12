@@ -3,7 +3,9 @@ import { createSlice } from '@reduxjs/toolkit';
 function loadThemeMode() {
   const stored = localStorage.getItem('awms.themeMode');
   if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  // Always start on light, regardless of the OS/browser's prefers-color-scheme —
+  // the person can still switch to dark via the header toggle, which is saved above.
+  return 'light';
 }
 
 const initialState = {

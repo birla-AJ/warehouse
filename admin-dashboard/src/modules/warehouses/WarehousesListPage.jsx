@@ -18,7 +18,7 @@ const columns = [
   { field: 'capacityUnit', headerName: 'Unit', width: 100 },
   {
     field: 'totalCapacity', headerName: 'Capacity', width: 120,
-    valueFormatter: (p) => Number(p.value).toLocaleString('en-IN'),
+    valueFormatter: (value) => Number(value).toLocaleString('en-IN'),
   },
 ];
 

@@ -16,7 +16,7 @@ import { apiErrorMessage } from '../../api/apiClient';
 
 const columns = [
   { field: 'dispatchNumber', headerName: 'Dispatch #', width: 190 },
-  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (p) => p.row.farmer?.name },
+  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.farmer?.name },
   { field: 'vehicleNo', headerName: 'Vehicle', width: 130 },
   { field: 'driverName', headerName: 'Driver', width: 140 },
   { field: 'status', headerName: 'Status', width: 130, renderCell: (p) => <StatusBadge status={p.value} /> },

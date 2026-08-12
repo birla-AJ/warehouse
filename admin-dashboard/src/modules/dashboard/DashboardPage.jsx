@@ -9,7 +9,7 @@ import { occupancyColor } from '../../theme/theme';
 import { StatCard } from '../../components/StatCard';
 import { PageHeader } from '../../components/PageHeader';
 
-const CHART_COLORS = ['#2B4C5C', '#C8963E', '#3F8F5F', '#B24A3D', '#87A3B3', '#8C6221'];
+const CHART_COLORS = ['#122F2C', '#D4A017', '#8FBFB6', '#B77B1E', '#486161', '#22C55E'];
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListScreen } from '../../components/ListScreen';
+import { ListScreen, PAGE_SIZE } from '../../components/ListScreen';
 import { ListItemCard } from '../../components/ListItemCard';
 import { fetchFarmers } from '../../api/domain.api';
 
@@ -11,7 +11,7 @@ export function AdminFarmersScreen() {
     <ListScreen
       title={t('farmers.title')}
       queryKey={['farmers']}
-      queryFn={() => fetchFarmers({ page: 1, limit: 50 })}
+      queryFn={(page) => fetchFarmers({ page, limit: PAGE_SIZE })}
       emptyIcon="account-group-outline"
       emptyTitleKey="farmers.noFarmersFound"
       renderItem={({ item }) => (

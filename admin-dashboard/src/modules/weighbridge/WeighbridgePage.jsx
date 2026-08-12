@@ -21,7 +21,7 @@ const columns = (onPrintSlip) => [
   { field: 'grossWeight', headerName: 'Gross', width: 100 },
   { field: 'tareWeight', headerName: 'Tare', width: 100 },
   { field: 'netWeight', headerName: 'Net', width: 100 },
-  { field: 'createdAt', headerName: 'Time', width: 180, valueFormatter: (p) => new Date(p.value).toLocaleString() },
+  { field: 'createdAt', headerName: 'Time', width: 180, valueFormatter: (value) => new Date(value).toLocaleString() },
   {
     field: 'actions',
     headerName: '',

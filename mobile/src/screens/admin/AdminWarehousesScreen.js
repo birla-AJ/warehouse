@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListScreen } from '../../components/ListScreen';
+import { ListScreen, PAGE_SIZE } from '../../components/ListScreen';
 import { ListItemCard } from '../../components/ListItemCard';
 import { fetchWarehouses } from '../../api/domain.api';
 
@@ -11,7 +11,7 @@ export function AdminWarehousesScreen() {
     <ListScreen
       title={t('warehouses.title')}
       queryKey={['warehouses']}
-      queryFn={() => fetchWarehouses({ page: 1, limit: 50 })}
+      queryFn={(page) => fetchWarehouses({ page, limit: PAGE_SIZE })}
       emptyIcon="warehouse"
       emptyTitleKey="warehouses.noWarehousesFound"
       renderItem={({ item }) => (

@@ -19,18 +19,18 @@ export class DocumentsController {
   @Post('upload')
   @Permissions({ module: 'settings', action: 'create' })
   register(@Body() dto: RegisterDocumentDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.register(dto, user.id);
+    return this.service.register(user.organizationId, dto, user.id);
   }
 
   @Get()
   @Permissions({ module: 'settings', action: 'read' })
-  list(@Query() query: ListDocumentsQueryDto) {
-    return this.service.list(query);
+  list(@Query() query: ListDocumentsQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.list(user.organizationId, query);
   }
 
   @Get(':id')
   @Permissions({ module: 'settings', action: 'read' })
-  getById(@Param('id') id: string) {
-    return this.service.getById(id);
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getById(id, user.organizationId);
   }
 }

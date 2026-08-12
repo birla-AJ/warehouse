@@ -3,11 +3,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate, useSearchParams, Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Link, Stack, TextField, Typography } from '@mui/material';
 import { useSnackbar } from 'notistack';
+import { useTranslation } from 'react-i18next';
 import { resetPasswordSchema } from '../authSchemas';
 import { useResetPassword } from '../auth.api';
-import { apiErrorMessage } from '../../../api/apiClient';
+import { useApiErrorMessage } from '../../../hooks/useApiErrorMessage';
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation();
+  const getErrorMessage = useApiErrorMessage();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
@@ -25,7 +28,7 @@ export function ResetPasswordPage() {
   const onSubmit = handleSubmit(({ confirmPassword, ...payload }) => {
     resetPassword.mutate(payload, {
       onSuccess: () => {
-        enqueueSnackbar('Password reset — please sign in again', { variant: 'success' });
+        enqueueSnackbar(t('auth.passwordResetSignInAgain'), { variant: 'success' });
         navigate('/login');
       },
     });
@@ -33,46 +36,46 @@ export function ResetPasswordPage() {
 
   return (
     <Box component="form" onSubmit={onSubmit} noValidate>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Set a new password
+      <Typography variant="h5" fontWeight={800} gutterBottom>
+        {t('auth.setNewPassword')}
       </Typography>
       <Typography variant="body2" color="text.secondary" mb={3}>
-        This link is valid for 30 minutes from when it was sent.
+        {t('auth.resetLinkValidity')}
       </Typography>
 
       {resetPassword.isError && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {apiErrorMessage(resetPassword.error, 'Reset link invalid or expired')}
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          {getErrorMessage(resetPassword.error, t('auth.resetLinkInvalidOrExpired'))}
         </Alert>
       )}
 
       <Stack spacing={2}>
         <TextField type="hidden" sx={{ display: 'none' }} {...register('token')} />
         <TextField
-          label="New password"
+          label={t('auth.newPassword')}
           type="password"
           fullWidth
           autoFocus
           error={!!errors.newPassword}
-          helperText={errors.newPassword?.message}
+          helperText={errors.newPassword ? t(errors.newPassword.message) : ''}
           {...register('newPassword')}
         />
         <TextField
-          label="Confirm new password"
+          label={t('auth.confirmPassword')}
           type="password"
           fullWidth
           error={!!errors.confirmPassword}
-          helperText={errors.confirmPassword?.message}
+          helperText={errors.confirmPassword ? t(errors.confirmPassword.message) : ''}
           {...register('confirmPassword')}
         />
         <Button type="submit" variant="contained" size="large" disabled={resetPassword.isPending}>
-          {resetPassword.isPending ? 'Resetting…' : 'Reset password'}
+          {resetPassword.isPending ? t('auth.resettingPassword') : t('auth.resetPassword')}
         </Button>
       </Stack>
 
       <Stack direction="row" justifyContent="center" mt={2.5}>
         <Link component={RouterLink} to="/login" variant="body2">
-          Back to sign in
+          {t('auth.backToLogin')}
         </Link>
       </Stack>
     </Box>

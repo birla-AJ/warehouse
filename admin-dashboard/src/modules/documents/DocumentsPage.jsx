@@ -15,7 +15,7 @@ const columns = [
   { field: 'type', headerName: 'Type', width: 160 },
   { field: 'fileName', headerName: 'File name', flex: 1, minWidth: 200 },
   { field: 'entityType', headerName: 'Linked to', width: 140 },
-  { field: 'createdAt', headerName: 'Uploaded', width: 180, valueFormatter: (p) => new Date(p.value).toLocaleString() },
+  { field: 'createdAt', headerName: 'Uploaded', width: 180, valueFormatter: (value) => new Date(value).toLocaleString() },
 ];
 
 export function DocumentsPage() {

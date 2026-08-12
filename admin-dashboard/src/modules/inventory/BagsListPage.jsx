@@ -18,11 +18,11 @@ import { fontMono } from '../../theme/theme';
 
 const columns = [
   { field: 'bagCode', headerName: 'Bag code', width: 150, renderCell: (p) => <span style={{ fontFamily: fontMono }}>{p.value}</span> },
-  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (p) => p.row.farmer?.name },
-  { field: 'cropName', headerName: 'Crop', width: 130, valueGetter: (p) => p.row.crop?.name },
+  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.farmer?.name },
+  { field: 'cropName', headerName: 'Crop', width: 130, valueGetter: (_value, row) => row.crop?.name },
   { field: 'grade', headerName: 'Grade', width: 90 },
   { field: 'weightKg', headerName: 'Weight (kg)', width: 120 },
-  { field: 'locationCode', headerName: 'Location', width: 170, valueGetter: (p) => p.row.position?.locationCode ?? 'Unassigned' },
+  { field: 'locationCode', headerName: 'Location', width: 170, valueGetter: (_value, row) => row.position?.locationCode ?? 'Unassigned' },
   { field: 'status', headerName: 'Status', width: 130, renderCell: (p) => <StatusBadge status={p.value} /> },
 ];
 

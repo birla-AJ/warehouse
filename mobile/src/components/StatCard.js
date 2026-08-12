@@ -3,13 +3,19 @@ import { StyleSheet, Text, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useAppTheme } from '../hooks/useAppTheme';
 import { radius, spacing, typography } from '../theme/theme';
+import { GradientView } from './GradientView';
 
 export function StatCard({ icon, label, value, accentColor, style }) {
   const { colors } = useAppTheme();
   const accent = accentColor ?? colors.primary;
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, style]}>
+    <View
+      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }, style]}
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+    >
+      <GradientView preset="brand" direction="horizontal" style={styles.topBar} />
       <View style={[styles.iconWrap, { backgroundColor: `${accent}20` }]}>
         <Icon name={icon} size={22} color={accent} />
       </View>
@@ -30,6 +36,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: spacing.md,
+    overflow: 'hidden',
+  },
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
   },
   iconWrap: {
     width: 40,

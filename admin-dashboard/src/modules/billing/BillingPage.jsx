@@ -16,9 +16,9 @@ import { apiErrorMessage } from '../../api/apiClient';
 
 const invoiceColumns = [
   { field: 'invoiceNumber', headerName: 'Invoice #', width: 190 },
-  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (p) => p.row.farmer?.name },
-  { field: 'periodFrom', headerName: 'From', width: 120, valueFormatter: (p) => new Date(p.value).toLocaleDateString() },
-  { field: 'periodTo', headerName: 'To', width: 120, valueFormatter: (p) => new Date(p.value).toLocaleDateString() },
+  { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.farmer?.name },
+  { field: 'periodFrom', headerName: 'From', width: 120, valueFormatter: (value) => new Date(value).toLocaleDateString() },
+  { field: 'periodTo', headerName: 'To', width: 120, valueFormatter: (value) => new Date(value).toLocaleDateString() },
   { field: 'totalAmount', headerName: 'Total', width: 120 },
   { field: 'status', headerName: 'Status', width: 130, renderCell: (p) => <StatusBadge status={p.value} /> },
 ];
@@ -106,10 +106,10 @@ export function BillingPage() {
           rows={rules ?? []}
           columns={[
             { field: 'name', headerName: 'Name', flex: 1, minWidth: 160 },
-            { field: 'cropName', headerName: 'Crop', width: 140, valueGetter: (p) => p.row.crop?.name ?? 'All crops' },
+            { field: 'cropName', headerName: 'Crop', width: 140, valueGetter: (_value, row) => row.crop?.name ?? 'All crops' },
             { field: 'ratePerBagPerDay', headerName: 'Rate/bag/day', width: 140 },
             { field: 'gstPercent', headerName: 'GST %', width: 100 },
-            { field: 'isDefault', headerName: 'Default', width: 100, valueFormatter: (p) => (p.value ? 'Yes' : 'No') },
+            { field: 'isDefault', headerName: 'Default', width: 100, valueFormatter: (value) => (value ? 'Yes' : 'No') },
           ]}
           loading={loadingRules}
           rowCount={rules?.length ?? 0}

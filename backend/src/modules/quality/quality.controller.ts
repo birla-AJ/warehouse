@@ -17,12 +17,12 @@ export class QualityController {
     @Body() dto: CreateQualityReportDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.createForBag(bagId, dto, user.id);
+    return this.service.createForBag(bagId, user.organizationId, dto, user.id);
   }
 
   @Get('quality-reports')
   @Permissions({ module: 'quality', action: 'read' })
-  list(@Query('bagId') bagId?: string, @Query('page') page?: number, @Query('limit') limit?: number) {
-    return this.service.list(bagId, Number(page) || 1, Number(limit) || 20);
+  list(@CurrentUser() user: AuthenticatedUser, @Query('bagId') bagId?: string, @Query('page') page?: number, @Query('limit') limit?: number) {
+    return this.service.list(user.organizationId, bagId, Number(page) || 1, Number(limit) || 20);
   }
 }

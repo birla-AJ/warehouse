@@ -39,15 +39,26 @@ export function AppTextInput({
           secureTextEntry={hidden}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
+          accessibilityLabel={label ?? placeholder}
+          accessibilityState={{ disabled: false }}
           style={[styles.input, typography.body, { color: colors.text }]}
         />
         {secureTextEntry ? (
-          <TouchableOpacity onPress={() => setHidden((h) => !h)} hitSlop={8}>
+          <TouchableOpacity
+            onPress={() => setHidden((h) => !h)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+          >
             <Icon name={hidden ? 'eye-off-outline' : 'eye-outline'} size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         ) : null}
       </View>
-      {error ? <Text style={[typography.caption, { color: colors.danger, marginTop: spacing.xs }]}>{error}</Text> : null}
+      {error ? (
+        <Text style={[typography.caption, { color: colors.danger, marginTop: spacing.xs }]} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }

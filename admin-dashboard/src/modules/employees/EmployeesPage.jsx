@@ -13,10 +13,10 @@ import { apiErrorMessage } from '../../api/apiClient';
 
 const employeeColumns = [
   { field: 'employeeCode', headerName: 'Code', width: 120 },
-  { field: 'name', headerName: 'Name', flex: 1, minWidth: 160, valueGetter: (p) => p.row.user?.name },
+  { field: 'name', headerName: 'Name', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.user?.name },
   { field: 'designation', headerName: 'Designation', width: 160 },
   { field: 'shift', headerName: 'Shift', width: 160 },
-  { field: 'joinDate', headerName: 'Joined', width: 130, valueFormatter: (p) => (p.value ? new Date(p.value).toLocaleDateString() : '—') },
+  { field: 'joinDate', headerName: 'Joined', width: 130, valueFormatter: (value) => (value ? new Date(value).toLocaleDateString() : '—') },
 ];
 
 export function EmployeesPage() {
@@ -67,9 +67,9 @@ export function EmployeesPage() {
         <DataTable
           rows={leaves?.items ?? leaves ?? []}
           columns={[
-            { field: 'employeeName', headerName: 'Employee', flex: 1, minWidth: 160, valueGetter: (p) => p.row.employee?.user?.name },
-            { field: 'fromDate', headerName: 'From', width: 130, valueFormatter: (p) => new Date(p.value).toLocaleDateString() },
-            { field: 'toDate', headerName: 'To', width: 130, valueFormatter: (p) => new Date(p.value).toLocaleDateString() },
+            { field: 'employeeName', headerName: 'Employee', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.employee?.user?.name },
+            { field: 'fromDate', headerName: 'From', width: 130, valueFormatter: (value) => new Date(value).toLocaleDateString() },
+            { field: 'toDate', headerName: 'To', width: 130, valueFormatter: (value) => new Date(value).toLocaleDateString() },
             { field: 'reason', headerName: 'Reason', flex: 1, minWidth: 160 },
             {
               field: 'actions', headerName: 'Actions', width: 200, sortable: false,

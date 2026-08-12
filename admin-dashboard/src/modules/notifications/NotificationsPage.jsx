@@ -9,7 +9,7 @@ const columns = [
   { field: 'channel', headerName: 'Channel', width: 110 },
   { field: 'recipient', headerName: 'Recipient', width: 170 },
   { field: 'status', headerName: 'Status', width: 110, renderCell: (p) => <StatusBadge status={p.value} /> },
-  { field: 'createdAt', headerName: 'Sent at', width: 190, valueFormatter: (p) => new Date(p.value).toLocaleString() },
+  { field: 'createdAt', headerName: 'Sent at', width: 190, valueFormatter: (value) => new Date(value).toLocaleString() },
 ];
 
 export function NotificationsPage() {

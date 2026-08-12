@@ -1,8 +1,22 @@
 import { Box, Card, CardContent, Stack, Typography } from '@mui/material';
+import { brandGradient, brandGradientSoft, brandGradientSoftDark } from '../theme/theme';
 
 export function StatCard({ label, value, icon, sub, accent = 'secondary.main' }) {
   return (
-    <Card>
+    <Card
+      sx={{
+        position: 'relative',
+        overflow: 'hidden',
+        '&:hover': { transform: 'translateY(-3px)' },
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          inset: 0,
+          height: 4,
+          backgroundImage: brandGradient,
+        },
+      }}
+    >
       <CardContent>
         <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
           <Box>
@@ -18,7 +32,22 @@ export function StatCard({ label, value, icon, sub, accent = 'secondary.main' })
               </Typography>
             )}
           </Box>
-          {icon && <Box sx={{ color: accent }}>{icon}</Box>}
+          {icon && (
+            <Box
+              sx={{
+                color: accent,
+                width: 44,
+                height: 44,
+                borderRadius: 2.5,
+                display: 'grid',
+                placeItems: 'center',
+                background: (theme) =>
+                  theme.palette.mode === 'light' ? brandGradientSoft : brandGradientSoftDark,
+              }}
+            >
+              {icon}
+            </Box>
+          )}
         </Stack>
       </CardContent>
     </Card>

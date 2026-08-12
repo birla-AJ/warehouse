@@ -10,16 +10,8 @@ export class BillingService {
   constructor(private prisma: PrismaService) {}
 
   createRule(organizationId: string, dto: CreateBillingRuleDto) {
-    const { cropId, ...rest } = dto;
-  
     return this.prisma.billingRule.create({
-      data: {
-        ...rest,
-        organization: { connect: { id: organizationId } },
-        ...(cropId
-          ? { crop: { connect: { id: cropId } } }
-          : {}),
-      },
+      data: { ...dto, organization: { connect: { id: organizationId } }, crop: dto.cropId ? { connect: { id: dto.cropId } } : undefined },
     });
   }
 
@@ -59,7 +51,7 @@ export class BillingService {
     ]);
     const defaultRule = rules.find((r) => r.isDefault);
 
-    const invoices: Awaited<ReturnType<typeof this.prisma.invoice.create>>[] = [];
+    const invoices = [];
 
     for (const farmer of farmers) {
       const bags = await this.prisma.bag.findMany({

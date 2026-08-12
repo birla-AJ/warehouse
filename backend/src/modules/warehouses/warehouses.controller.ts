@@ -18,14 +18,14 @@ export class WarehousesController {
 
   @Get(':id')
   @Permissions({ module: 'warehouses', action: 'read' })
-  getById(@Param('id') id: string) {
-    return this.service.getById(id);
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getById(id, user.organizationId);
   }
 
   @Get(':id/layout')
   @Permissions({ module: 'warehouses', action: 'read' })
-  getLayout(@Param('id') id: string) {
-    return this.service.getLayout(id);
+  getLayout(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getLayout(id, user.organizationId);
   }
 
   @Post()
@@ -36,13 +36,13 @@ export class WarehousesController {
 
   @Patch(':id')
   @Permissions({ module: 'warehouses', action: 'update' })
-  update(@Param('id') id: string, @Body() dto: UpdateWarehouseDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateWarehouseDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
   @Permissions({ module: 'warehouses', action: 'delete' })
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.remove(id, user.organizationId);
   }
 }

@@ -9,7 +9,7 @@ import { fontMono } from '../../theme/theme';
 const MODULES = ['warehouses', 'farmers', 'crops', 'inventory', 'quality', 'weighbridge', 'billing', 'payments', 'dispatch', 'cctv', 'employees', 'settings'];
 
 const columns = [
-  { field: 'createdAt', headerName: 'Time', width: 190, valueFormatter: (p) => new Date(p.value).toLocaleString() },
+  { field: 'createdAt', headerName: 'Time', width: 190, valueFormatter: (value) => new Date(value).toLocaleString() },
   { field: 'module', headerName: 'Module', width: 130 },
   { field: 'action', headerName: 'Action', width: 100 },
   { field: 'entityId', headerName: 'Entity ID', width: 220, renderCell: (p) => <span style={{ fontFamily: fontMono, fontSize: 12 }}>{p.value}</span> },

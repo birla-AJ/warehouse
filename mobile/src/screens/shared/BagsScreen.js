@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListScreen } from '../../components/ListScreen';
+import { ListScreen, PAGE_SIZE } from '../../components/ListScreen';
 import { ListItemCard } from '../../components/ListItemCard';
 import { fetchBags } from '../../api/domain.api';
 
@@ -11,7 +11,7 @@ export function BagsScreen() {
     <ListScreen
       title={t('bags.title')}
       queryKey={['bags']}
-      queryFn={() => fetchBags({ page: 1, limit: 50 })}
+      queryFn={(page) => fetchBags({ page, limit: PAGE_SIZE })}
       emptyIcon="package-variant-closed"
       emptyTitleKey="bags.noBagsFound"
       renderItem={({ item }) => (

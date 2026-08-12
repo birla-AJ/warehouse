@@ -1,11 +1,15 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
+import { PrismaService } from '../../database/prisma.service';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto, UpdateUserDto, ListUsersQueryDto } from './dto/user.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(private usersRepo: UsersRepository) {}
+  constructor(
+    private usersRepo: UsersRepository,
+    private prisma: PrismaService,
+  ) {}
 
   async list(organizationId: string, query: ListUsersQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
@@ -37,15 +41,30 @@ export class UsersService {
     };
   }
 
-  async getById(id: string) {
-    const user = await this.usersRepo.findById(id);
+  async getById(id: string, organizationId: string) {
+    // Previously this took no organizationId at all — any org's admin
+    // could fetch, edit, or deactivate any other org's user accounts by
+    // ID, including changing their password via update() below. This is
+    // the check every mutation in this service now goes through first.
+    const user = await this.usersRepo.findById(id, organizationId);
     if (!user) throw new NotFoundException('User not found');
     return this.sanitize(user);
+  }
+
+  private async assertRoleUsable(roleId: string, organizationId: string) {
+    // A role must be either a system template (organizationId: null) or
+    // owned by the caller's own org — otherwise a user could be assigned
+    // a role belonging to a different organization entirely.
+    const role = await this.prisma.role.findFirst({
+      where: { id: roleId, deletedAt: null, OR: [{ organizationId: null }, { organizationId }] },
+    });
+    if (!role) throw new NotFoundException('Role not found');
   }
 
   async create(organizationId: string, dto: CreateUserDto) {
     const existing = await this.usersRepo.findByEmailOrMobile(dto.email, dto.mobile);
     if (existing) throw new ConflictException('Email or mobile already registered');
+    await this.assertRoleUsable(dto.roleId, organizationId);
 
     const passwordHash = await argon2.hash(dto.password);
 
@@ -62,8 +81,8 @@ export class UsersService {
     return this.sanitize(user);
   }
 
-  async update(id: string, dto: UpdateUserDto) {
-    await this.getById(id); // ensures existence + not-deleted
+  async update(id: string, organizationId: string, dto: UpdateUserDto) {
+    await this.getById(id, organizationId); // ensures existence + ownership + not-deleted
 
     const data: any = { ...dto };
     if (dto.password) {
@@ -71,6 +90,7 @@ export class UsersService {
       delete data.password;
     }
     if (dto.roleId) {
+      await this.assertRoleUsable(dto.roleId, organizationId);
       data.role = { connect: { id: dto.roleId } };
       delete data.roleId;
     }
@@ -79,8 +99,8 @@ export class UsersService {
     return this.sanitize(updated);
   }
 
-  async remove(id: string) {
-    await this.getById(id);
+  async remove(id: string, organizationId: string) {
+    await this.getById(id, organizationId);
     await this.usersRepo.softDelete(id);
     return { message: 'User deactivated' };
   }

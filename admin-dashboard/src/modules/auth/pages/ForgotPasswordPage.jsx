@@ -2,10 +2,12 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link as RouterLink } from 'react-router-dom';
 import { Alert, Box, Button, Link, Stack, TextField, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 import { forgotPasswordSchema } from '../authSchemas';
 import { useForgotPassword } from '../auth.api';
 
 export function ForgotPasswordPage() {
+  const { t } = useTranslation();
   const forgotPassword = useForgotPassword();
   const {
     register,
@@ -17,28 +19,28 @@ export function ForgotPasswordPage() {
 
   return (
     <Box>
-      <Typography variant="h5" fontWeight={700} gutterBottom>
-        Reset your password
+      <Typography variant="h5" fontWeight={800} gutterBottom>
+        {t('auth.resetPasswordTitle')}
       </Typography>
       <Typography variant="body2" color="text.secondary" mb={3}>
-        Enter the email on your account and we'll send a reset link.
+        {t('auth.resetPasswordSubtitle')}
       </Typography>
 
       {forgotPassword.isSuccess ? (
-        <Alert severity="success">{forgotPassword.data.message} — check your inbox for the reset link.</Alert>
+        <Alert severity="success" sx={{ borderRadius: 2 }}>{t('auth.resetLinkSent')}</Alert>
       ) : (
         <Box component="form" onSubmit={onSubmit} noValidate>
           <Stack spacing={2}>
             <TextField
-              label="Email"
+              label={t('auth.email')}
               fullWidth
               autoFocus
               error={!!errors.email}
-              helperText={errors.email?.message}
+              helperText={errors.email ? t(errors.email.message) : ''}
               {...register('email')}
             />
             <Button type="submit" variant="contained" size="large" disabled={forgotPassword.isPending}>
-              {forgotPassword.isPending ? 'Sending…' : 'Send reset link'}
+              {forgotPassword.isPending ? t('auth.sendingResetLink') : t('auth.sendResetLink')}
             </Button>
           </Stack>
         </Box>
@@ -46,7 +48,7 @@ export function ForgotPasswordPage() {
 
       <Stack direction="row" justifyContent="center" mt={2.5}>
         <Link component={RouterLink} to="/login" variant="body2">
-          Back to sign in
+          {t('auth.backToLogin')}
         </Link>
       </Stack>
     </Box>

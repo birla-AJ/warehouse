@@ -18,9 +18,14 @@ export class DocumentsService {
    * AWS Deployment phase). Keeping upload and registration separate avoids
    * routing large binaries through this API server.
    */
-  register(dto: RegisterDocumentDto, uploadedById?: string) {
+  async register(organizationId: string, dto: RegisterDocumentDto, uploadedById?: string) {
+    if (dto.farmerId) {
+      const farmer = await this.prisma.farmer.findFirst({ where: { id: dto.farmerId, organizationId } });
+      if (!farmer) throw new NotFoundException('Farmer not found');
+    }
     return this.prisma.document.create({
       data: {
+        organizationId,
         type: dto.type,
         fileUrl: dto.fileUrl,
         fileName: dto.fileName,
@@ -33,16 +38,17 @@ export class DocumentsService {
     });
   }
 
-  async getById(id: string) {
-    const doc = await this.prisma.document.findUnique({ where: { id } });
+  async getById(id: string, organizationId: string) {
+    const doc = await this.prisma.document.findFirst({ where: { id, organizationId } });
     if (!doc) throw new NotFoundException('Document not found');
     return doc;
   }
 
-  list(query: ListDocumentsQueryDto) {
+  list(organizationId: string, query: ListDocumentsQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const where = {
+      organizationId,
       ...(query.farmerId ? { farmerId: query.farmerId } : {}),
       ...(query.entityType ? { entityType: query.entityType } : {}),
       ...(query.entityId ? { entityId: query.entityId } : {}),

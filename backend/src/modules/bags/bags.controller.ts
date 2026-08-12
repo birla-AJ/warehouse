@@ -12,14 +12,14 @@ export class BagsController {
 
   @Get('bags')
   @Permissions({ module: 'inventory', action: 'read' })
-  list(@Query() query: ListBagsQueryDto) {
-    return this.service.list(query);
+  list(@Query() query: ListBagsQueryDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.list(user.organizationId, query);
   }
 
   @Get('bags/:id')
   @Permissions({ module: 'inventory', action: 'read' })
-  getById(@Param('id') id: string) {
-    return this.service.getById(id);
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getById(id, user.organizationId);
   }
 
   @Post('bags')
@@ -31,24 +31,24 @@ export class BagsController {
   @Patch('bags/:id/move')
   @Permissions({ module: 'inventory', action: 'update' })
   move(@Param('id') id: string, @Body() dto: MoveBagDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.move(id, dto, user.id);
+    return this.service.move(id, user.organizationId, dto, user.id);
   }
 
   @Patch('bags/:id/adjust')
   @Permissions({ module: 'inventory', action: 'update' })
   adjust(@Param('id') id: string, @Body() dto: AdjustBagDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.adjust(id, dto, user.id);
+    return this.service.adjust(id, user.organizationId, dto, user.id);
   }
 
   @Patch('bags/:id/damage')
   @Permissions({ module: 'inventory', action: 'update' })
   markDamaged(@Param('id') id: string, @Body() dto: DamageBagDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.markDamaged(id, dto, user.id);
+    return this.service.markDamaged(id, user.organizationId, dto, user.id);
   }
 
   @Get('qr/:code/resolve')
   @Permissions({ module: 'inventory', action: 'read' })
-  resolveQr(@Param('code') code: string) {
-    return this.service.getByQrCode(code);
+  resolveQr(@Param('code') code: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.getByQrCode(code, user.organizationId);
   }
 }

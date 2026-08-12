@@ -4,17 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { useAppTheme } from '../../hooks/useAppTheme';
+import { useGreetingKey } from '../../hooks/useGreetingKey';
 import { AppHeader } from '../../components/AppHeader';
+import { EmptyState } from '../../components/EmptyState';
 import { StatCard } from '../../components/StatCard';
 import { fetchDashboardSummary } from '../../api/domain.api';
 import { spacing } from '../../theme/theme';
-
-function useGreetingKey() {
-  const hour = new Date().getHours();
-  if (hour < 12) return 'dashboard.greetingMorning';
-  if (hour < 17) return 'dashboard.greetingAfternoon';
-  return 'dashboard.greetingEvening';
-}
 
 export function CustomerDashboardScreen() {
   const { t } = useTranslation();
@@ -23,7 +18,7 @@ export function CustomerDashboardScreen() {
   const greetingKey = useGreetingKey();
   const [refreshing, setRefreshing] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['dashboard-summary'],
     queryFn: fetchDashboardSummary,
   });
@@ -43,6 +38,14 @@ export function CustomerDashboardScreen() {
       >
         {isLoading ? (
           <Text style={{ color: colors.textSecondary }}>{t('common.loading')}</Text>
+        ) : isError ? (
+          <EmptyState
+            icon="wifi-off"
+            title={t('common.somethingWentWrong')}
+            subtitle={t('common.networkError')}
+            onRetry={refetch}
+            retryLabel={t('common.retry')}
+          />
         ) : (
           <View style={styles.grid}>
             <StatCard icon="package-variant-closed" label={t('dashboard.inStorage')} value={data?.inventoryCount ?? 0} />

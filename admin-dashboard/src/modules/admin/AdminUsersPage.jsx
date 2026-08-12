@@ -15,7 +15,7 @@ const userColumns = [
   { field: 'name', headerName: 'Name', flex: 1, minWidth: 160 },
   { field: 'email', headerName: 'Email', width: 200 },
   { field: 'mobile', headerName: 'Mobile', width: 130 },
-  { field: 'roleName', headerName: 'Role', width: 170, valueGetter: (p) => p.row.role?.name },
+  { field: 'roleName', headerName: 'Role', width: 170, valueGetter: (_value, row) => row.role?.name },
   { field: 'status', headerName: 'Status', width: 120, renderCell: (p) => <StatusBadge status={p.value} /> },
 ];
 

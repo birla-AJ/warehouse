@@ -21,7 +21,7 @@ export function StatusBadge({ status, label }) {
   const color = colors[colorKey] ?? colors.info;
 
   return (
-    <View style={[styles.badge, { backgroundColor: `${color}22` }]}>
+    <View style={[styles.badge, { backgroundColor: `${color}22` }]} accessibilityRole="text">
       <Text style={[typography.caption, { color, fontWeight: '700' }]}>{label ?? status}</Text>
     </View>
   );

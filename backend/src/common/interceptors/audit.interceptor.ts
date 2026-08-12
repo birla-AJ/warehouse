@@ -24,6 +24,7 @@ export class AuditInterceptor implements NestInterceptor {
           .create({
             data: {
               userId: user?.id ?? null,
+              organizationId: user?.organizationId ?? null,
               action: method,
               module: this.extractModule(url),
               entityId: responseBody?.id ?? body?.id ?? null,

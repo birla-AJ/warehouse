@@ -15,14 +15,14 @@ export class WarehousesService {
     return { items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
-  async getById(id: string) {
-    const warehouse = await this.repo.findById(id);
+  async getById(id: string, organizationId: string) {
+    const warehouse = await this.repo.findById(id, organizationId);
     if (!warehouse) throw new NotFoundException('Warehouse not found');
     return warehouse;
   }
 
   async create(organizationId: string, dto: CreateWarehouseDto) {
-    const existing = await this.repo.findByCode(dto.code);
+    const existing = await this.repo.findByCode(organizationId, dto.code);
     if (existing) throw new ConflictException('Warehouse code already in use');
 
     return this.repo.createWarehouse({
@@ -35,13 +35,13 @@ export class WarehousesService {
     });
   }
 
-  async update(id: string, dto: UpdateWarehouseDto) {
-    await this.getById(id);
+  async update(id: string, organizationId: string, dto: UpdateWarehouseDto) {
+    await this.getById(id, organizationId);
     return this.repo.updateWarehouse(id, dto);
   }
 
-  async remove(id: string) {
-    await this.getById(id);
+  async remove(id: string, organizationId: string) {
+    await this.getById(id, organizationId);
     await this.repo.softDeleteWarehouse(id);
     return { message: 'Warehouse deactivated' };
   }
@@ -51,8 +51,8 @@ export class WarehousesService {
    * green = EMPTY, yellow = PARTIAL, red = FULL, grey = DISABLED.
    * Also rolls up an occupancy summary at each level of the tree.
    */
-  async getLayout(id: string) {
-    const warehouse = await this.repo.getLayout(id);
+  async getLayout(id: string, organizationId: string) {
+    const warehouse = await this.repo.getLayout(id, organizationId);
     if (!warehouse) throw new NotFoundException('Warehouse not found');
 
     const colorMap: Record<string, string> = {

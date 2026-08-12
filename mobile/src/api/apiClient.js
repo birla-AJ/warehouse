@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { store } from '../store/store';
 import { setTokens, sessionExpired } from '../store/slices/authSlice';
-import { saveSession, clearSession } from '../store/sessionStorage';
+import { updateStoredTokens, clearSession } from '../store/sessionStorage';
 import { API_BASE_URL } from './config';
 
 export const apiClient = axios.create({
@@ -20,13 +20,13 @@ apiClient.interceptors.request.use((config) => {
 let refreshPromise = null;
 
 async function refreshAccessToken() {
-  const { refreshToken, user } = store.getState().auth;
+  const { refreshToken } = store.getState().auth;
   if (!refreshToken) throw new Error('No refresh token available');
 
   const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
   const { accessToken, refreshToken: newRefreshToken } = response.data;
   store.dispatch(setTokens({ accessToken, refreshToken: newRefreshToken }));
-  await saveSession({ accessToken, refreshToken: newRefreshToken, user });
+  await updateStoredTokens({ accessToken, refreshToken: newRefreshToken });
   return accessToken;
 }
 
@@ -56,9 +56,19 @@ apiClient.interceptors.response.use(
   },
 );
 
-/** Pulls a human-readable message out of a NestJS error response. */
+/**
+ * Pulls a human-readable message out of a NestJS error response, falling
+ * back sensibly when there's no response at all (offline, DNS failure,
+ * request timeout) vs. a server response with no message field.
+ */
 export function apiErrorMessage(error, fallback = 'common.somethingWentWrong') {
-  const message = error?.response?.data?.message;
+  if (!error?.response) {
+    // No `response` means the request never got a reply — offline, timed
+    // out, or the server is unreachable. This is a distinct case from a
+    // 4xx/5xx with a bad payload, and deserves the network-specific copy.
+    return 'common.networkError';
+  }
+  const message = error.response.data?.message;
   if (Array.isArray(message)) return message.join(', ');
   return message ?? fallback;
 }

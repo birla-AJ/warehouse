@@ -23,16 +23,16 @@ export class BagsRepository {
     return this.prisma.bag.count({ where });
   }
 
-  findById(id: string, client: Client = this.prisma) {
+  findById(id: string, organizationId: string, client: Client = this.prisma) {
     return client.bag.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, farmer: { organizationId } },
       include: { farmer: true, crop: true, bagType: true, position: true },
     });
   }
 
-  findByQrCode(qrCode: string) {
-    return this.prisma.bag.findUnique({
-      where: { qrCode },
+  findByQrCode(qrCode: string, organizationId: string) {
+    return this.prisma.bag.findFirst({
+      where: { qrCode, farmer: { organizationId } },
       include: { farmer: true, crop: true, bagType: true, position: true, movements: { orderBy: { createdAt: 'desc' } } },
     });
   }
@@ -71,14 +71,18 @@ export class BagsRepository {
     return this.prisma.inventoryMovement.count({ where });
   }
 
-  groupByStatus() {
-    return this.prisma.bag.groupBy({ by: ['status'], where: { deletedAt: null }, _count: true });
+  groupByStatus(organizationId: string) {
+    return this.prisma.bag.groupBy({
+      by: ['status'],
+      where: { deletedAt: null, farmer: { organizationId } },
+      _count: true,
+    });
   }
 
-  groupByCrop() {
+  groupByCrop(organizationId: string) {
     return this.prisma.bag.groupBy({
       by: ['cropId'],
-      where: { deletedAt: null, status: 'IN_STORAGE' },
+      where: { deletedAt: null, status: 'IN_STORAGE', farmer: { organizationId } },
       _count: true,
       _sum: { weightKg: true },
     });

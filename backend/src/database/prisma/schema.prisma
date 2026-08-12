@@ -100,6 +100,7 @@ model RefreshToken {
 model Role {
   id          String           @id @default(uuid())
   name        String
+  organizationId String? // null = system/global role template; set = a custom role owned by that org
   isSystem    Boolean          @default(false)
   users       User[]
   permissions RolePermission[]
@@ -108,7 +109,8 @@ model Role {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  @@unique([name])
+  @@unique([organizationId, name])
+  @@index([organizationId])
   @@map("roles")
 }
 
@@ -144,7 +146,7 @@ model Warehouse {
   organization   Organization @relation(fields: [organizationId], references: [id])
 
   name          String
-  code          String        @unique // short code used as locationCode prefix, e.g. "WH1"
+  code          String        // short code used as locationCode prefix, e.g. "WH1"
   address       String?
   capacityUnit  String        @default("bags") // "bags" | "tonnes" | custom
   totalCapacity Decimal       @default(0)
@@ -156,6 +158,7 @@ model Warehouse {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([organizationId, code])
   @@index([organizationId])
   @@map("warehouses")
 }
@@ -369,6 +372,7 @@ model CropBagType {
 // ─────────────────────────────────────────────────────────
 model Document {
   id         String   @id @default(uuid())
+  organizationId String
   farmerId   String?
   farmer     Farmer?  @relation(fields: [farmerId], references: [id])
   entityType String? // optional generic link when not farmer-specific, e.g. "dispatch", "bag", "invoice"
@@ -382,6 +386,7 @@ model Document {
 
   @@index([farmerId])
   @@index([entityType, entityId])
+  @@index([organizationId])
   @@map("documents")
 }
 
@@ -389,8 +394,9 @@ model Document {
 // WEIGHBRIDGE
 // ─────────────────────────────────────────────────────────
 model WeighbridgeEntry {
-  id          String   @id @default(uuid())
-  slipNumber  String   @unique
+  id             String   @id @default(uuid())
+  slipNumber     String   @unique
+  organizationId String
   vehicleNo   String
   direction   String // IN | OUT
   grossWeight Decimal
@@ -402,6 +408,7 @@ model WeighbridgeEntry {
   createdAt   DateTime @default(now())
 
   @@index([vehicleNo])
+  @@index([organizationId])
   @@map("weighbridge_entries")
 }
 
@@ -801,8 +808,9 @@ model Setting {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
+  id             String   @id @default(uuid())
+  userId         String?
+  organizationId String?
   action    String
   module    String
   entityId  String?
@@ -815,5 +823,6 @@ model AuditLog {
 
   @@index([module, entityId])
   @@index([createdAt])
+  @@index([organizationId])
   @@map("audit_logs")
 }

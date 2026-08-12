@@ -1,7 +1,7 @@
 import React from 'react';
-import { TouchableOpacity } from 'react-native';
+import { Alert, TouchableOpacity } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { ListScreen } from '../../components/ListScreen';
+import { ListScreen, PAGE_SIZE } from '../../components/ListScreen';
 import { ListItemCard } from '../../components/ListItemCard';
 import { fetchDispatches } from '../../api/domain.api';
 import { openPdf } from '../../utils/pdf';
@@ -14,9 +14,7 @@ export function DispatchScreen() {
     try {
       await openPdf(`/dispatch/${dispatch.id}/gate-pass/pdf`, `${dispatch.dispatchNumber}.pdf`);
     } catch {
-      // Silently ignore — a toast/snackbar library isn't wired up in this
-      // scaffold; add one (e.g. react-native-toast-message) if you want
-      // inline error feedback here instead of nothing happening.
+      Alert.alert(t('common.somethingWentWrong'), t('common.networkError'));
     }
   };
 
@@ -24,11 +22,17 @@ export function DispatchScreen() {
     <ListScreen
       title={t('dispatch.title')}
       queryKey={['dispatch']}
-      queryFn={() => fetchDispatches({ page: 1, limit: 50 })}
+      queryFn={(page) => fetchDispatches({ page, limit: PAGE_SIZE })}
       emptyIcon="truck-outline"
       emptyTitleKey="dispatch.noDispatchesFound"
       renderItem={({ item }) => (
-        <TouchableOpacity activeOpacity={0.7} onPress={() => handlePress(item)}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => handlePress(item)}
+          disabled={item.status !== 'COMPLETED'}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('dispatch.gatePass')} ${item.dispatchNumber}`}
+        >
           <ListItemCard
             title={item.dispatchNumber}
             status={item.status}

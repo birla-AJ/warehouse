@@ -15,12 +15,12 @@ export class WarehousesRepository {
     return this.prisma.warehouse.count({ where });
   }
 
-  findById(id: string) {
-    return this.prisma.warehouse.findFirst({ where: { id, deletedAt: null } });
+  findById(id: string, organizationId: string) {
+    return this.prisma.warehouse.findFirst({ where: { id, organizationId, deletedAt: null } });
   }
 
-  findByCode(code: string) {
-    return this.prisma.warehouse.findUnique({ where: { code } });
+  findByCode(organizationId: string, code: string) {
+    return this.prisma.warehouse.findUnique({ where: { organizationId_code: { organizationId, code } } });
   }
 
   createWarehouse(data: Prisma.WarehouseCreateInput) {
@@ -36,9 +36,9 @@ export class WarehousesRepository {
   }
 
   // ── Full nested layout for visualization ────────────────
-  getLayout(warehouseId: string) {
+  getLayout(warehouseId: string, organizationId: string) {
     return this.prisma.warehouse.findFirst({
-      where: { id: warehouseId, deletedAt: null },
+      where: { id: warehouseId, organizationId, deletedAt: null },
       include: {
         zones: {
           where: { deletedAt: null },

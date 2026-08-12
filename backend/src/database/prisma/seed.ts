@@ -65,13 +65,13 @@ async function main() {
     }
   }
 
-  // Seed system roles
+  // Seed system roles (organizationId: null — shared templates across every org)
   const roles: Record<string, { id: string }> = {};
   for (const name of SYSTEM_ROLES) {
     const role = await prisma.role.upsert({
-      where: { name },
+      where: { organizationId_name: { organizationId: null as any, name } },
       update: {},
-      create: { name, isSystem: true },
+      create: { name, isSystem: true, organizationId: null },
     });
     roles[name] = role;
   }

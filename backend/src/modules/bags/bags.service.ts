@@ -12,12 +12,13 @@ export class BagsService {
     private locationsService: LocationsService,
   ) {}
 
-  async list(query: ListBagsQueryDto) {
+  async list(organizationId: string, query: ListBagsQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
 
     const where = {
       deletedAt: null,
+      farmer: { organizationId },
       ...(query.farmerId ? { farmerId: query.farmerId } : {}),
       ...(query.cropId ? { cropId: query.cropId } : {}),
       ...(query.status ? { status: query.status as any } : {}),
@@ -31,14 +32,14 @@ export class BagsService {
     return { items, meta: { page, limit, total, totalPages: Math.ceil(total / limit) } };
   }
 
-  async getById(id: string) {
-    const bag = await this.repo.findById(id);
+  async getById(id: string, organizationId: string) {
+    const bag = await this.repo.findById(id, organizationId);
     if (!bag) throw new NotFoundException('Bag not found');
     return bag;
   }
 
-  async getByQrCode(qrCode: string) {
-    const bag = await this.repo.findByQrCode(qrCode);
+  async getByQrCode(qrCode: string, organizationId: string) {
+    const bag = await this.repo.findByQrCode(qrCode, organizationId);
     if (!bag) throw new NotFoundException('No bag found for this QR code');
     return bag;
   }
@@ -97,8 +98,8 @@ export class BagsService {
    * never drift out of sync with its actual bags (the previous version did
    * these as four separate, individually-committed writes).
    */
-  async move(bagId: string, dto: MoveBagDto, performedById?: string) {
-    const bag = await this.getById(bagId);
+  async move(bagId: string, organizationId: string, dto: MoveBagDto, performedById?: string) {
+    const bag = await this.getById(bagId, organizationId);
     if (bag.status !== 'IN_STORAGE') {
       throw new BadRequestException(`Cannot move a bag with status ${bag.status}`);
     }
@@ -129,11 +130,11 @@ export class BagsService {
       await this.bumpPositionLoad(dto.toPositionId, +1, tx);
     });
 
-    return this.getById(bagId);
+    return this.getById(bagId, organizationId);
   }
 
-  async adjust(bagId: string, dto: AdjustBagDto, performedById?: string) {
-    await this.getById(bagId);
+  async adjust(bagId: string, organizationId: string, dto: AdjustBagDto, performedById?: string) {
+    await this.getById(bagId, organizationId);
     const updated = await this.repo.update(bagId, { weightKg: dto.weightKg });
 
     await this.repo.createMovement({
@@ -148,8 +149,8 @@ export class BagsService {
   }
 
   /** Marks a bag DAMAGED and frees its position, atomically. */
-  async markDamaged(bagId: string, dto: DamageBagDto, performedById?: string) {
-    const bag = await this.getById(bagId);
+  async markDamaged(bagId: string, organizationId: string, dto: DamageBagDto, performedById?: string) {
+    const bag = await this.getById(bagId, organizationId);
 
     const updated = await this.repo.runInTransaction(async (tx) => {
       const result = await this.repo.update(bagId, { status: 'DAMAGED' }, tx);
@@ -174,16 +175,16 @@ export class BagsService {
     return updated;
   }
 
-  async reserve(bagId: string) {
-    const bag = await this.getById(bagId);
+  async reserve(bagId: string, organizationId: string) {
+    const bag = await this.getById(bagId, organizationId);
     if (bag.status !== 'IN_STORAGE') {
       throw new BadRequestException(`Cannot reserve a bag with status ${bag.status}`);
     }
     return this.repo.update(bagId, { status: 'RESERVED' });
   }
 
-  async unreserve(bagId: string) {
-    const bag = await this.getById(bagId);
+  async unreserve(bagId: string, organizationId: string) {
+    const bag = await this.getById(bagId, organizationId);
     if (bag.status !== 'RESERVED') {
       throw new BadRequestException(`Cannot unreserve a bag with status ${bag.status}`);
     }
@@ -191,8 +192,8 @@ export class BagsService {
   }
 
   /** Marks a bag DISPATCHED and frees its position, atomically. */
-  async markDispatched(bagId: string, performedById?: string) {
-    const bag = await this.getById(bagId);
+  async markDispatched(bagId: string, organizationId: string, performedById?: string) {
+    const bag = await this.getById(bagId, organizationId);
     if (bag.status !== 'IN_STORAGE' && bag.status !== 'RESERVED') {
       throw new BadRequestException(`Cannot dispatch a bag with status ${bag.status}`);
     }
@@ -217,8 +218,8 @@ export class BagsService {
     });
   }
 
-  async listMovements(bagId?: string, page = 1, limit = 20) {
-    const where = bagId ? { bagId } : {};
+  async listMovements(organizationId: string, bagId?: string, page = 1, limit = 20) {
+    const where = { bag: { farmer: { organizationId } }, ...(bagId ? { bagId } : {}) };
     const [items, total] = await Promise.all([
       this.repo.findMovements(where, (page - 1) * limit, limit),
       this.repo.countMovements(where),
@@ -226,8 +227,11 @@ export class BagsService {
     return { items, meta: { page, limit, total } };
   }
 
-  async summary() {
-    const [byStatus, byCrop] = await Promise.all([this.repo.groupByStatus(), this.repo.groupByCrop()]);
+  async summary(organizationId: string) {
+    const [byStatus, byCrop] = await Promise.all([
+      this.repo.groupByStatus(organizationId),
+      this.repo.groupByCrop(organizationId),
+    ]);
     return {
       byStatus: byStatus.map((row) => ({ status: row.status, count: row._count })),
       byCrop: byCrop.map((row) => ({

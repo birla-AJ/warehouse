@@ -31,6 +31,9 @@ export function LanguageToggle() {
             key={opt.code}
             onPress={() => handleSelect(opt.code)}
             style={[styles.pill, active && { backgroundColor: colors.primary }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Switch to ${opt.label}`}
+            accessibilityState={{ selected: active }}
           >
             <Text style={[typography.bodyBold, { color: active ? '#fff' : colors.textSecondary }]}>{opt.label}</Text>
           </TouchableOpacity>

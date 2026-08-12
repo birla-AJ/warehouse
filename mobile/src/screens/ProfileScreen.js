@@ -26,6 +26,12 @@ export function ProfileScreen() {
         text: t('profile.logout'),
         style: 'destructive',
         onPress: async () => {
+          // Note: dispatch(logout()) below flips isAuthenticated to false,
+          // which swaps RootNavigator to AuthStack and unmounts this screen
+          // almost immediately — so we intentionally don't setLoggingOut(false)
+          // afterwards (there'd be nothing left to update). We still show the
+          // spinner for the brief clearSession() await so the button doesn't
+          // look unresponsive if storage is slow.
           setLoggingOut(true);
           await clearSession();
           dispatch(logout());

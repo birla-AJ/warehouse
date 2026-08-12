@@ -6,26 +6,38 @@ import { CreateRoleDto, UpdateRolePermissionsDto } from './dto/role.dto';
 export class RolesPermissionsService {
   constructor(private prisma: PrismaService) {}
 
-  listRoles() {
+  /**
+   * A caller sees system role templates (organizationId: null, shared
+   * across every org — e.g. default "Admin"/"Warehouse Manager") plus
+   * whatever custom roles their own org has created. They never see
+   * another org's custom roles — that was a real bug: this previously had
+   * no scoping at all, so any org's admin could enumerate (and, via
+   * updateRolePermissions/deleteRole below, modify or delete) every other
+   * org's role definitions.
+   */
+  listRoles(organizationId: string) {
     return this.prisma.role.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, OR: [{ organizationId: null }, { organizationId }] },
       include: { permissions: { include: { permission: true } } },
       orderBy: { name: 'asc' },
     });
   }
 
   listPermissions() {
+    // Permission is the fixed platform-defined action catalog (e.g.
+    // "inventory:read") — same set for every organization, so it's
+    // intentionally not org-scoped, unlike Role.
     return this.prisma.permission.findMany({ orderBy: [{ module: 'asc' }, { action: 'asc' }] });
   }
 
-  async createRole(dto: CreateRoleDto) {
-    const existing = await this.prisma.role.findUnique({ where: { name: dto.name } });
+  async createRole(organizationId: string, dto: CreateRoleDto) {
+    const existing = await this.prisma.role.findFirst({ where: { organizationId, name: dto.name } });
     if (existing) throw new ConflictException('Role name already exists');
-    return this.prisma.role.create({ data: { name: dto.name } });
+    return this.prisma.role.create({ data: { name: dto.name, organizationId } });
   }
 
-  async updateRolePermissions(roleId: string, dto: UpdateRolePermissionsDto) {
-    const role = await this.prisma.role.findFirst({ where: { id: roleId, deletedAt: null } });
+  async updateRolePermissions(roleId: string, organizationId: string, dto: UpdateRolePermissionsDto) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, deletedAt: null, organizationId } });
     if (!role) throw new NotFoundException('Role not found');
     if (role.isSystem) {
       throw new BadRequestException('System role permissions cannot be modified directly');
@@ -45,8 +57,8 @@ export class RolesPermissionsService {
     });
   }
 
-  async deleteRole(roleId: string) {
-    const role = await this.prisma.role.findFirst({ where: { id: roleId, deletedAt: null } });
+  async deleteRole(roleId: string, organizationId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, deletedAt: null, organizationId } });
     if (!role) throw new NotFoundException('Role not found');
     if (role.isSystem) throw new BadRequestException('System roles cannot be deleted');
 

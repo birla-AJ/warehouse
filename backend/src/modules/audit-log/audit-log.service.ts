@@ -6,11 +6,12 @@ import { AuditLogQueryDto } from './dto/audit-log-query.dto';
 export class AuditLogService {
   constructor(private prisma: PrismaService) {}
 
-  list(query: AuditLogQueryDto) {
+  list(organizationId: string, query: AuditLogQueryDto) {
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(200, Math.max(1, Number(query.limit) || 50));
 
     const where = {
+      organizationId,
       ...(query.userId ? { userId: query.userId } : {}),
       ...(query.module ? { module: query.module } : {}),
       ...(query.entityId ? { entityId: query.entityId } : {}),

@@ -18,8 +18,8 @@ export class UsersController {
 
   @Get(':id')
   @Permissions({ module: 'users', action: 'read' })
-  getById(@Param('id') id: string) {
-    return this.usersService.getById(id);
+  getById(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.getById(id, user.organizationId);
   }
 
   @Post()
@@ -30,13 +30,13 @@ export class UsersController {
 
   @Patch(':id')
   @Permissions({ module: 'users', action: 'update' })
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.usersService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.update(id, user.organizationId, dto);
   }
 
   @Delete(':id')
   @Permissions({ module: 'users', action: 'delete' })
-  remove(@Param('id') id: string) {
-    return this.usersService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.remove(id, user.organizationId);
   }
 }

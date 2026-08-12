@@ -12,24 +12,27 @@ import {
 export class EmployeesService {
   constructor(private prisma: PrismaService) {}
 
-  list() {
+  list(organizationId: string) {
     return this.prisma.employee.findMany({
-      where: { deletedAt: null },
+      where: { deletedAt: null, user: { organizationId } },
       include: { user: true },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getById(id: string) {
+  async getById(id: string, organizationId: string) {
     const employee = await this.prisma.employee.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, deletedAt: null, user: { organizationId } },
       include: { user: true },
     });
     if (!employee) throw new NotFoundException('Employee not found');
     return employee;
   }
 
-  async create(dto: CreateEmployeeDto) {
+  async create(organizationId: string, dto: CreateEmployeeDto) {
+    const targetUser = await this.prisma.user.findFirst({ where: { id: dto.userId, organizationId } });
+    if (!targetUser) throw new NotFoundException('User not found');
+
     const existing = await this.prisma.employee.findUnique({ where: { userId: dto.userId } });
     if (existing) throw new ConflictException('This user is already an employee record');
 
@@ -48,8 +51,8 @@ export class EmployeesService {
     });
   }
 
-  async update(id: string, dto: UpdateEmployeeDto) {
-    await this.getById(id);
+  async update(id: string, organizationId: string, dto: UpdateEmployeeDto) {
+    await this.getById(id, organizationId);
     const { userId, joinDate, ...rest } = dto;
     return this.prisma.employee.update({
       where: { id },
@@ -58,16 +61,16 @@ export class EmployeesService {
     });
   }
 
-  async remove(id: string) {
-    await this.getById(id);
+  async remove(id: string, organizationId: string) {
+    await this.getById(id, organizationId);
     await this.prisma.employee.update({ where: { id }, data: { deletedAt: new Date() } });
     return { message: 'Employee deactivated' };
   }
 
   // ── Attendance ───────────────────────────────────────────
 
-  async markAttendance(dto: MarkAttendanceDto) {
-    await this.getById(dto.employeeId);
+  async markAttendance(organizationId: string, dto: MarkAttendanceDto) {
+    await this.getById(dto.employeeId, organizationId);
     const date = this.dateOnly(dto.date);
 
     return this.prisma.attendance.upsert({
@@ -77,9 +80,10 @@ export class EmployeesService {
     });
   }
 
-  async listAttendance(employeeId?: string, from?: string, to?: string) {
+  async listAttendance(organizationId: string, employeeId?: string, from?: string, to?: string) {
     return this.prisma.attendance.findMany({
       where: {
+        employee: { user: { organizationId } },
         ...(employeeId ? { employeeId } : {}),
         ...(from || to
           ? { date: { ...(from ? { gte: this.dateOnly(from) } : {}), ...(to ? { lte: this.dateOnly(to) } : {}) } }
@@ -92,8 +96,8 @@ export class EmployeesService {
 
   // ── Leave ────────────────────────────────────────────────
 
-  async requestLeave(dto: RequestLeaveDto) {
-    await this.getById(dto.employeeId);
+  async requestLeave(organizationId: string, dto: RequestLeaveDto) {
+    await this.getById(dto.employeeId, organizationId);
     const fromDate = new Date(dto.fromDate);
     const toDate = new Date(dto.toDate);
     if (toDate < fromDate) throw new BadRequestException('toDate cannot be before fromDate');
@@ -103,8 +107,10 @@ export class EmployeesService {
     });
   }
 
-  async decideLeave(id: string, dto: DecideLeaveDto, decidedById?: string) {
-    const leave = await this.prisma.leaveRequest.findUnique({ where: { id } });
+  async decideLeave(id: string, organizationId: string, dto: DecideLeaveDto, decidedById?: string) {
+    const leave = await this.prisma.leaveRequest.findFirst({
+      where: { id, employee: { user: { organizationId } } },
+    });
     if (!leave) throw new NotFoundException('Leave request not found');
     if (leave.status !== 'PENDING') {
       throw new BadRequestException(`Leave request is already ${leave.status.toLowerCase()}`);
@@ -116,9 +122,13 @@ export class EmployeesService {
     });
   }
 
-  listLeaves(employeeId?: string, status?: string) {
+  listLeaves(organizationId: string, employeeId?: string, status?: string) {
     return this.prisma.leaveRequest.findMany({
-      where: { ...(employeeId ? { employeeId } : {}), ...(status ? { status: status as any } : {}) },
+      where: {
+        employee: { user: { organizationId } },
+        ...(employeeId ? { employeeId } : {}),
+        ...(status ? { status: status as any } : {}),
+      },
       orderBy: { createdAt: 'desc' },
       include: { employee: { include: { user: true } } },
     });

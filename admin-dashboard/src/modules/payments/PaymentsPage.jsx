@@ -46,12 +46,12 @@ export function PaymentsPage() {
 
   const columns = [
     { field: 'receiptNo', headerName: 'Receipt #', width: 200, renderCell: (p) => <span style={{ fontFamily: fontMono }}>{p.value}</span> },
-    { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (p) => p.row.farmer?.name },
-    { field: 'invoiceNumber', headerName: 'Invoice', width: 180, valueGetter: (p) => p.row.invoice?.invoiceNumber ?? '—' },
+    { field: 'farmerName', headerName: 'Farmer', flex: 1, minWidth: 160, valueGetter: (_value, row) => row.farmer?.name },
+    { field: 'invoiceNumber', headerName: 'Invoice', width: 180, valueGetter: (_value, row) => row.invoice?.invoiceNumber ?? '—' },
     { field: 'amount', headerName: 'Amount', width: 110 },
     { field: 'type', headerName: 'Type', width: 100 },
     { field: 'method', headerName: 'Method', width: 130 },
-    { field: 'createdAt', headerName: 'Date', width: 180, valueFormatter: (p) => new Date(p.value).toLocaleString() },
+    { field: 'createdAt', headerName: 'Date', width: 180, valueFormatter: (value) => new Date(value).toLocaleString() },
     {
       field: 'actions', headerName: '', width: 100, sortable: false,
       renderCell: (p) =>

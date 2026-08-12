@@ -52,8 +52,17 @@ export function DataTable({
         }}
         sx={{
           border: 'none',
-          '& .MuiDataGrid-columnHeaders': { borderRadius: 0 },
-          '& .MuiDataGrid-row': { cursor: onRowClick ? 'pointer' : 'default' },
+          borderRadius: 3,
+          '& .MuiDataGrid-columnHeaders': { borderRadius: 0, backgroundColor: 'action.hover' },
+          '& .MuiDataGrid-row': {
+            cursor: onRowClick ? 'pointer' : 'default',
+            transition: 'background-color 140ms ease',
+          },
+          '& .MuiDataGrid-row:hover': {
+            backgroundColor: (theme) =>
+              theme.palette.mode === 'light' ? 'rgba(18,47,44,0.05)' : 'rgba(143,191,182,0.10)',
+          },
+          '& .MuiDataGrid-cell:focus, & .MuiDataGrid-cell:focus-within': { outline: 'none' },
         }}
         {...rest}
       />

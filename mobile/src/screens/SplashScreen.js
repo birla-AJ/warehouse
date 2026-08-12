@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StatusBar, StyleSheet, Text } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { palette } from '../theme/theme';
+import { GradientView } from '../components/GradientView';
+import { AwmsMark } from '../components/AwmsMark';
 
 /**
  * Pure-JS animated splash (fade + scale logo, slide-up tagline, then a soft
@@ -55,61 +56,49 @@ export function SplashScreen({ onFinish, ready }) {
   }, [ready, onFinish]);
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={palette.primaryDark} />
+    <GradientView preset="brand" style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       <Animated.View
         style={[
-          styles.logoCircle,
+          styles.logoWrap,
           { opacity: logoOpacity, transform: [{ scale: Animated.multiply(logoScale, pulse) }] },
         ]}
       >
-        <Text style={styles.logoText}>AW</Text>
+        <AwmsMark size={96} rounded={26} />
       </Animated.View>
 
       <Animated.View style={{ opacity: taglineOpacity, transform: [{ translateY: taglineTranslate }] }}>
         <Text style={styles.appName}>{t('common.appName')}</Text>
         <Text style={styles.tagline}>{t('common.tagline')}</Text>
       </Animated.View>
-    </View>
+    </GradientView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: palette.primaryDark,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    backgroundColor: palette.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoWrap: {
     marginBottom: 24,
-    shadowColor: palette.black,
+    shadowColor: '#000',
     shadowOpacity: 0.25,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
-  logoText: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: palette.primaryDark,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   appName: {
     fontSize: 24,
     fontWeight: '800',
-    color: palette.white,
+    color: '#FFFFFF',
     textAlign: 'center',
     letterSpacing: 1,
   },
   tagline: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
+    color: 'rgba(255,255,255,0.85)',
     textAlign: 'center',
     marginTop: 4,
   },

@@ -20,9 +20,9 @@ export class UsersRepository {
     return this.prisma.user.count({ where });
   }
 
-  findById(id: string) {
+  findById(id: string, organizationId: string) {
     return this.prisma.user.findFirst({
-      where: { id, deletedAt: null },
+      where: { id, organizationId, deletedAt: null },
       include: { role: true },
     });
   }
@@ -40,6 +40,11 @@ export class UsersRepository {
     return this.prisma.user.create({ data, include: { role: true } });
   }
 
+  // NOTE: `where: { id }` only — Prisma's single-record update/delete only
+  // accepts unique fields in `where` (organizationId isn't one). The
+  // organization check happens in the service layer via findById() BEFORE
+  // this is ever called — see UsersService.update()/remove() below, same
+  // check-then-mutate-by-id pattern used across bags/dispatch/etc.
   update(id: string, data: Prisma.UserUpdateInput) {
     return this.prisma.user.update({ where: { id }, data, include: { role: true } });
   }
