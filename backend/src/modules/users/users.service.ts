@@ -1,8 +1,17 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma.service';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto, UpdateUserDto, ListUsersQueryDto } from './dto/user.dto';
+
+// SUPER_ADMIN and WAREHOUSE_OWNER are onboarded only through the
+// super-admin-only /platform/admins flow (see PlatformService.createAdmin) —
+// never through this regular, org-scoped Users screen. Without this check,
+// any org admin with `users:create` could grant themselves or a teammate
+// platform-wide or other-org-owning access simply by picking the role from
+// the dropdown; roles-permissions.service.ts filters it out of the list
+// they're shown, but that's UI-only, so the real enforcement is here.
+const PLATFORM_ONLY_ROLES = ['SUPER_ADMIN', 'WAREHOUSE_OWNER'];
 
 @Injectable()
 export class UsersService {
@@ -59,6 +68,9 @@ export class UsersService {
       where: { id: roleId, deletedAt: null, OR: [{ organizationId: null }, { organizationId }] },
     });
     if (!role) throw new NotFoundException('Role not found');
+    if (PLATFORM_ONLY_ROLES.includes(role.name)) {
+      throw new ForbiddenException('This role can only be assigned through platform admin onboarding');
+    }
   }
 
   async create(organizationId: string, dto: CreateUserDto) {

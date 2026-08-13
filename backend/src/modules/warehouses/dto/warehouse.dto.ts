@@ -15,6 +15,26 @@ export class CreateWarehouseDto {
   address?: string;
 
   @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  state?: string;
+
+  @IsOptional()
+  @IsString()
+  pincode?: string;
+
+  @IsOptional()
+  @IsNumber()
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber()
+  longitude?: number;
+
+  @IsOptional()
   @IsIn(['bags', 'tonnes', 'kg', 'custom'])
   capacityUnit?: string;
 

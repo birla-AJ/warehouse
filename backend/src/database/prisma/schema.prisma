@@ -148,6 +148,11 @@ model Warehouse {
   name          String
   code          String        // short code used as locationCode prefix, e.g. "WH1"
   address       String?
+  city          String?
+  state         String?
+  pincode       String?
+  latitude      Decimal?
+  longitude     Decimal?
   capacityUnit  String        @default("bags") // "bags" | "tonnes" | custom
   totalCapacity Decimal       @default(0)
 
@@ -396,16 +401,16 @@ model Document {
 model WeighbridgeEntry {
   id             String   @id @default(uuid())
   slipNumber     String   @unique
-  organizationId String?
-  vehicleNo      String
-  direction      String
-  grossWeight    Decimal
-  tareWeight     Decimal
-  netWeight      Decimal
-  farmerId       String?
-  farmer         Farmer?  @relation(fields: [farmerId], references: [id])
-  notes          String?
-  createdAt      DateTime @default(now())
+  organizationId String
+  vehicleNo   String
+  direction   String // IN | OUT
+  grossWeight Decimal
+  tareWeight  Decimal
+  netWeight   Decimal
+  farmerId    String?
+  farmer      Farmer?  @relation(fields: [farmerId], references: [id])
+  notes       String?
+  createdAt   DateTime @default(now())
 
   @@index([vehicleNo])
   @@index([organizationId])

@@ -27,6 +27,7 @@ import { EmployeesModule } from './modules/employees/employees.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { AuditLogModule } from './modules/audit-log/audit-log.module';
 import { HealthModule } from './modules/health/health.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { PrismaService } from './database/prisma.service';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 
@@ -81,6 +82,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
     SettingsModule,
     AuditLogModule,
     HealthModule,
+    PlatformModule,
   ],
   providers: [
     PrismaService,

@@ -14,10 +14,20 @@ export class RolesPermissionsService {
    * no scoping at all, so any org's admin could enumerate (and, via
    * updateRolePermissions/deleteRole below, modify or delete) every other
    * org's role definitions.
+   *
+   * SUPER_ADMIN and WAREHOUSE_OWNER are excluded here even though they're
+   * system roles: they're platform-level (assigned only by the /platform
+   * super-admin flow when a new admin/org is onboarded), not something an
+   * org's own admin should be able to hand out via the regular Users
+   * screen — see the matching check in UsersService.assertRoleUsable().
    */
   listRoles(organizationId: string) {
     return this.prisma.role.findMany({
-      where: { deletedAt: null, OR: [{ organizationId: null }, { organizationId }] },
+      where: {
+        deletedAt: null,
+        OR: [{ organizationId: null }, { organizationId }],
+        name: { notIn: ['SUPER_ADMIN', 'WAREHOUSE_OWNER'] },
+      },
       include: { permissions: { include: { permission: true } } },
       orderBy: { name: 'asc' },
     });
