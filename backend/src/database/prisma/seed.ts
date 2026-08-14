@@ -48,12 +48,7 @@ async function main() {
   });
 
   // Seed permissions: one row per module/action combination
-  const permissionRecords: Array<{
-    id: string;
-    module: string;
-    action: string;
-    scope: string | null;
-  }> = [];
+  const permissionRecords = [];
   for (const module of MODULES) {
     for (const action of ACTIONS) {
       const perm = await prisma.permission.upsert({
@@ -76,7 +71,9 @@ async function main() {
     roles[name] = role;
   }
 
-  // SUPER_ADMIN gets every permission
+  // SUPER_ADMIN gets every permission (platform-level — though in practice
+  // they only use the /platform routes, which are gated by role, not by
+  // this permission table)
   for (const perm of permissionRecords) {
     await prisma.rolePermission.upsert({
       where: {
@@ -87,6 +84,27 @@ async function main() {
       },
       update: {},
       create: { roleId: roles['SUPER_ADMIN'].id, permissionId: perm.id },
+    });
+  }
+
+  // WAREHOUSE_OWNER (= "Admin" in the product's language) also gets every
+  // permission — they are the sole full-control operator within their own
+  // organization/warehouse: farmers, inventory, billing, dispatch, staff,
+  // reports, settings, everything. This was missing before, which is why a
+  // freshly onboarded admin saw an empty sidebar (only Dashboard, since
+  // that's the only nav item with no requiredPermission) — every other nav
+  // entry is permission-gated and this role had zero rows in
+  // role_permissions.
+  for (const perm of permissionRecords) {
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: roles['WAREHOUSE_OWNER'].id,
+          permissionId: perm.id,
+        },
+      },
+      update: {},
+      create: { roleId: roles['WAREHOUSE_OWNER'].id, permissionId: perm.id },
     });
   }
 
