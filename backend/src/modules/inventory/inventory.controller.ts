@@ -1,17 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { BagsService } from '../bags/bags.service';
-import { AdjustBagDto, MoveBagDto } from '../bags/dto/bag.dto';
+import { AdjustBagDto } from '../bags/dto/bag.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { IsUUID } from 'class-validator';
 
 class AdjustInventoryDto extends AdjustBagDto {
-  @IsUUID()
-  bagId: string;
-}
-
-class TransferInventoryDto extends MoveBagDto {
   @IsUUID()
   bagId: string;
 }
@@ -42,11 +37,5 @@ export class InventoryController {
   @Permissions({ module: 'inventory', action: 'update' })
   adjust(@Body() dto: AdjustInventoryDto, @CurrentUser() user: AuthenticatedUser) {
     return this.bagsService.adjust(dto.bagId, user.organizationId, dto, user.id);
-  }
-
-  @Patch('transfer')
-  @Permissions({ module: 'inventory', action: 'update' })
-  transfer(@Body() dto: TransferInventoryDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.bagsService.move(dto.bagId, user.organizationId, dto, user.id);
   }
 }

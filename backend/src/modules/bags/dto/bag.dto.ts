@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, Min, MinLength } from 'class-validator';
 
 export enum GradeDto {
   PREMIUM = 'PREMIUM',
@@ -30,10 +30,6 @@ export class CreateBagDto {
   @IsInt()
   @Min(1)
   bagCount?: number;
-
-  @IsOptional()
-  @IsString()
-  batchId?: string;
 
   @IsOptional()
   @IsEnum(GradeDto)
@@ -68,6 +64,48 @@ export class AdjustBagDto {
 export class DamageBagDto {
   @IsString()
   note: string;
+}
+
+// ── batch-level actions ──────────────────────────────────────
+// The app now manages inventory at the batch level (see BagsService) —
+// individual per-bag move/damage/dispatch stays internally for QR/audit
+// purposes but is no longer exposed as separate user actions.
+
+export class MoveBatchDto {
+  @IsString()
+  @MinLength(1)
+  locationCode: string;
+
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+export class DamageBatchDto {
+  @IsInt()
+  @Min(1)
+  bagCount: number;
+
+  @IsString()
+  note: string;
+}
+
+export class ListBatchesQueryDto {
+  @IsOptional()
+  @IsUUID()
+  farmerId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  cropId?: string;
+
+  @IsOptional()
+  @IsInt()
+  page?: number = 1;
+
+  @IsOptional()
+  @IsInt()
+  limit?: number = 20;
 }
 
 export class ListBagsQueryDto {

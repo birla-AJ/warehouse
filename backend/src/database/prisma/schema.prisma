@@ -433,7 +433,7 @@ model Bag {
   bagTypeId String
   bagType   BagType @relation(fields: [bagTypeId], references: [id])
 
-  batchId  String?
+  batchId  String
   grade    Grade   @default(A)
   weightKg Decimal
 
@@ -455,6 +455,7 @@ model Bag {
   @@index([cropId])
   @@index([status])
   @@index([positionId])
+  @@index([batchId])
   @@map("bags")
 }
 
@@ -620,6 +621,8 @@ model Dispatch {
   farmerId       String
   farmer         Farmer   @relation(fields: [farmerId], references: [id])
 
+  batchId String?
+
   vehicleNo    String
   driverName   String
   driverMobile String
@@ -627,6 +630,9 @@ model Dispatch {
   dispatchType String // PARTIAL | FULL
   status       DispatchStatus @default(PENDING)
 
+  // OTP/QR gate-verification fields — unused now that dispatch completes
+  // immediately on creation (see DispatchService). Left in place rather than
+  // dropped so no data/migration risk; the app no longer reads or writes them.
   otpCodeHash  String?
   otpExpiresAt DateTime?
   otpVerified  Boolean  @default(false)
@@ -639,6 +645,7 @@ model Dispatch {
   updatedAt DateTime @updatedAt
 
   @@index([farmerId])
+  @@index([batchId])
   @@map("dispatches")
 }
 

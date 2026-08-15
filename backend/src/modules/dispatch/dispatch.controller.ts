@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
 import { DispatchService } from './dispatch.service';
-import { CreateDispatchDto, VerifyDispatchOtpDto } from './dto/dispatch.dto';
+import { CreateDispatchDto } from './dto/dispatch.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser, AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 
@@ -34,17 +35,21 @@ export class DispatchController {
     return this.service.create(user.organizationId, dto, user.id);
   }
 
-  @Post(':id/verify-otp')
-  @Permissions({ module: 'dispatch', action: 'update' })
-  verifyOtp(@Param('id') id: string, @Body() dto: VerifyDispatchOtpDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.verifyOtp(id, user.organizationId, dto, user.id);
-  }
-
-  @Post(':id/cancel')
-  @Permissions({ module: 'dispatch', action: 'update' })
-  cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.service.cancel(id, user.organizationId);
-  }
+  // OTP verification and cancel endpoints removed along with the OTP/QR gate
+  // step — dispatch now completes directly in POST /dispatch. Kept commented
+  // out (matching dispatch.service.ts) in case gate verification returns.
+  //
+  // @Post(':id/verify-otp')
+  // @Permissions({ module: 'dispatch', action: 'update' })
+  // verifyOtp(@Param('id') id: string, @Body() dto: VerifyDispatchOtpDto, @CurrentUser() user: AuthenticatedUser) {
+  //   return this.service.verifyOtp(id, user.organizationId, dto, user.id);
+  // }
+  //
+  // @Post(':id/cancel')
+  // @Permissions({ module: 'dispatch', action: 'update' })
+  // cancel(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+  //   return this.service.cancel(id, user.organizationId);
+  // }
 
   @Get(':id/gate-pass')
   @Permissions({ module: 'dispatch', action: 'read' })
