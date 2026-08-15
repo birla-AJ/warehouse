@@ -21,6 +21,11 @@ export class PlatformController {
     return this.service.getStats();
   }
 
+  @Get('overview/:resource')
+  getOverviewDetails(@Param('resource') resource: string) {
+    return this.service.getOverviewDetails(resource);
+  }
+
   @Get('admins')
   listAdmins(@Query('page') page?: string, @Query('limit') limit?: string, @Query('search') search?: string) {
     return this.service.listAdmins(Number(page) || 1, Number(limit) || 20, search);

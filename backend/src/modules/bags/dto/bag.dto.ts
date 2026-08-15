@@ -15,8 +15,21 @@ export class CreateBagDto {
   @IsUUID()
   cropId: string;
 
+  @IsOptional()
   @IsUUID()
-  bagTypeId: string;
+  bagTypeId?: string;
+
+  // Used by the simplified receiving screen. The service resolves this fixed
+  // size to a BagType record, creating the standard type when necessary.
+  @IsOptional()
+  @IsNumber()
+  @Min(0.1)
+  bagSizeKg?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  bagCount?: number;
 
   @IsOptional()
   @IsString()

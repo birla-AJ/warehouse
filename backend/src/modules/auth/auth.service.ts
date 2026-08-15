@@ -47,7 +47,7 @@ export class AuthService {
     const passwordValid = await argon2.verify(user.passwordHash, dto.password);
     if (!passwordValid) throw new UnauthorizedException('Invalid credentials');
 
-    return this.issueSession(user.id, user.organizationId, user.roleId, user.role.name, ctx);
+    return this.issueSession(user.id, user.organizationId, user.roleId, user.role.name, user.email, user.mobile, ctx);
   }
 
   async requestOtp(dto: RequestOtpDto) {
@@ -96,7 +96,7 @@ export class AuthService {
       data: { otpCode: null, otpExpiresAt: null },
     });
 
-    return this.issueSession(user.id, user.organizationId, user.roleId, user.role.name, ctx);
+    return this.issueSession(user.id, user.organizationId, user.roleId, user.role.name, user.email, user.mobile, ctx);
   }
 
   async refresh(refreshTokenRaw: string) {
@@ -212,8 +212,22 @@ export class AuthService {
   }
 
   async getMyPermissions(userId: string) {
-    const user = await this.prisma.user.findFirst({ where: { id: userId, deletedAt: null } });
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, deletedAt: null },
+      include: { role: true },
+    });
     if (!user) throw new UnauthorizedException('User not found');
+
+    // Warehouse owners are the full-control users for their organization.
+    // Older installations can have the system role but miss its seeded
+    // role_permissions rows; expose the intended permissions without a
+    // database reseed so their dashboard is not reduced to Dashboard only.
+    if (user.role.name === 'WAREHOUSE_OWNER') {
+      const permissions = await this.prisma.permission.findMany({
+        select: { module: true, action: true },
+      });
+      return permissions;
+    }
 
     const rolePermissions = await this.prisma.rolePermission.findMany({
       where: { roleId: user.roleId },
@@ -230,6 +244,8 @@ export class AuthService {
     organizationId: string,
     roleId: string,
     roleName: string,
+    email: string | null,
+    mobile: string | null,
     ctx: DeviceContext,
   ) {
     const device = await this.prisma.device.create({
@@ -247,7 +263,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: userId, organizationId, roleId, roleName },
+      user: { id: userId, organizationId, roleId, roleName, email, mobile },
     };
   }
 

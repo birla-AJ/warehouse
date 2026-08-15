@@ -191,4 +191,66 @@ export class PlatformService {
       adminsPerMonth: Object.entries(monthly).map(([month, count]) => ({ month, count })),
     };
   }
+
+  /** Read-only entity lists displayed from the platform overview summary cards. */
+  async getOverviewDetails(resource: string) {
+    switch (resource) {
+      case 'admins':
+        return this.prisma.user.findMany({
+          where: { deletedAt: null, role: { name: 'WAREHOUSE_OWNER' } },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            mobile: true,
+            status: true,
+            organization: { select: { name: true } },
+          },
+        });
+      case 'warehouses':
+        return this.prisma.warehouse.findMany({
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            city: true,
+            state: true,
+            totalCapacity: true,
+            capacityUnit: true,
+            organization: { select: { name: true } },
+          },
+        });
+      case 'farmers':
+        return this.prisma.farmer.findMany({
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            farmerCode: true,
+            mobile: true,
+            village: true,
+            district: true,
+            state: true,
+            organization: { select: { name: true } },
+          },
+        });
+      case 'organizations':
+        return this.prisma.organization.findMany({
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            gstNumber: true,
+            _count: { select: { warehouses: { where: { deletedAt: null } }, farmers: { where: { deletedAt: null } } } },
+          },
+        });
+      default:
+        throw new NotFoundException('Overview resource not found');
+    }
+  }
 }

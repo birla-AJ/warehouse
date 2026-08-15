@@ -41,6 +41,14 @@ export class BagsRepository {
     return this.prisma.bag.count();
   }
 
+  upsertStandardBagType(weightKg: number) {
+    return this.prisma.bagType.upsert({
+      where: { label: `${weightKg} KG` },
+      update: { weightKg, deletedAt: null },
+      create: { label: `${weightKg} KG`, weightKg },
+    });
+  }
+
   create(data: Prisma.BagCreateInput, client: Client = this.prisma) {
     return client.bag.create({ data, include: { farmer: true, crop: true, bagType: true, position: true } });
   }

@@ -50,6 +50,34 @@ export class BagsService {
    * entry, and the position's load bump all commit together or not at all.
    */
   async create(dto: CreateBagDto, performedById?: string) {
+    const bagCount = dto.bagCount ?? 1;
+    const bagTypeId = await this.resolveBagTypeId(dto);
+    const totalWeightKg = Number(dto.weightKg);
+
+    if (bagCount === 1) {
+      return this.createOne({ ...dto, bagTypeId, weightKg: totalWeightKg }, performedById);
+    }
+
+    const standardWeightKg = Number(dto.bagSizeKg);
+    const minimumTotalWeight = (bagCount - 1) * standardWeightKg + 0.1;
+    if (totalWeightKg < minimumTotalWeight) {
+      throw new BadRequestException('Total weight is too low for the selected number of bags');
+    }
+
+    // Store one record and QR code per physical bag. Any extra loose crop is
+    // added to the final bag so the individual weights always match the total.
+    const bags = [];
+    for (let index = 0; index < bagCount; index += 1) {
+      const weightKg = index === bagCount - 1
+        ? totalWeightKg - standardWeightKg * (bagCount - 1)
+        : standardWeightKg;
+      bags.push(await this.createOne({ ...dto, bagTypeId, bagCount: undefined, weightKg }, performedById));
+    }
+
+    return { bags, count: bags.length, totalWeightKg };
+  }
+
+  private async createOne(dto: CreateBagDto & { bagTypeId: string }, performedById?: string) {
     const bagCode = await this.generateBagCode();
     const qrCode = QrUtil.generateToken(bagCode);
 
@@ -89,6 +117,19 @@ export class BagsService {
 
       return bag;
     });
+  }
+
+  private async resolveBagTypeId(dto: CreateBagDto) {
+    if (dto.bagTypeId) return dto.bagTypeId;
+
+    const standardBagSizes = [10, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80];
+    const bagSizeKg = Number(dto.bagSizeKg);
+    if (!standardBagSizes.includes(bagSizeKg)) {
+      throw new BadRequestException('Select a valid bag type');
+    }
+
+    const bagType = await this.repo.upsertStandardBagType(bagSizeKg);
+    return bagType.id;
   }
 
   /**

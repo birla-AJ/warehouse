@@ -23,6 +23,11 @@ export class RbacGuard implements CanActivate {
     const user = request.user;
     if (!user) throw new ForbiddenException('Not authenticated');
 
+    // A warehouse owner is the full-control administrator of their own
+    // organization. Keep legacy installations usable even when the initial
+    // role_permissions seed was not applied to this system role.
+    if (user.roleName === 'WAREHOUSE_OWNER') return true;
+
     const grantedPermissions = await this.prisma.rolePermission.findMany({
       where: { roleId: user.roleId },
       include: { permission: true },
