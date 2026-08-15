@@ -26,6 +26,12 @@ export class FarmersRepository {
     return this.prisma.farmer.count({ where: { organizationId, deletedAt: null } });
   }
 
+  // Counts ALL farmers ever created for the org (including soft-deleted), so
+  // sequence numbers are never reused and can't collide with a deleted farmer's code.
+  countByOrgIncludingDeleted(organizationId: string) {
+    return this.prisma.farmer.count({ where: { organizationId } });
+  }
+
   create(data: Prisma.FarmerCreateInput) {
     return this.prisma.farmer.create({ data });
   }

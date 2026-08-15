@@ -280,7 +280,7 @@ model Farmer {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id])
 
-  farmerCode String  @unique
+  farmerCode String
   photoUrl   String?
 
   name       String
@@ -317,6 +317,7 @@ model Farmer {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
+  @@unique([organizationId, farmerCode])
   @@index([organizationId])
   @@index([mobile])
   @@map("farmers")

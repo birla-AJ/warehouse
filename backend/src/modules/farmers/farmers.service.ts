@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { FarmersRepository } from './farmers.repository';
 import { CreateFarmerDto, UpdateFarmerDto, ListFarmersQueryDto } from './dto/farmer.dto';
 import { EncryptionUtil } from '../../common/utils/encryption.util';
@@ -47,11 +48,8 @@ export class FarmersService {
     const existing = await this.repo.findByMobile(dto.mobile);
     if (existing) throw new ConflictException('A farmer with this mobile number already exists');
 
-    const farmerCode = await this.generateFarmerCode(organizationId);
-
-    const farmer = await this.repo.create({
+    const baseData = {
       organization: { connect: { id: organizationId } },
-      farmerCode,
       name: dto.name,
       fatherName: dto.fatherName,
       village: dto.village,
@@ -71,9 +69,28 @@ export class FarmersService {
       emergencyContactName: dto.emergencyContactName,
       emergencyContactPhone: dto.emergencyContactPhone,
       photoUrl: dto.photoUrl,
-    });
+    };
 
-    return this.sanitize(farmer, { revealSensitive: true });
+    // Retry a couple of times in case two requests race and generate the same
+    // sequence number for this org — the DB's (organizationId, farmerCode)
+    // unique constraint is the real guard; this just recovers from a collision.
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const farmerCode = await this.generateFarmerCode(organizationId);
+      try {
+        const farmer = await this.repo.create({ ...baseData, farmerCode });
+        return this.sanitize(farmer, { revealSensitive: true });
+      } catch (err) {
+        const isCodeCollision =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === 'P2002' &&
+          (err.meta?.target as string[] | undefined)?.includes('farmerCode');
+
+        if (!isCodeCollision || attempt === maxAttempts) throw err;
+      }
+    }
+
+    throw new ConflictException('Could not generate a unique farmer code, please retry');
   }
 
   async update(id: string, dto: UpdateFarmerDto) {
@@ -99,9 +116,14 @@ export class FarmersService {
     return { message: 'Farmer deactivated' };
   }
 
-  /** Generates FARM-000001-style sequential codes scoped per organization. */
+  /**
+   * Generates FARM-000001-style sequential codes scoped per organization.
+   * Uses the total count INCLUDING soft-deleted farmers so a sequence number
+   * is never reused — reusing one would collide with the deleted farmer's
+   * code under the (organizationId, farmerCode) unique constraint.
+   */
   private async generateFarmerCode(organizationId: string): Promise<string> {
-    const count = await this.repo.countByOrg(organizationId);
+    const count = await this.repo.countByOrgIncludingDeleted(organizationId);
     const sequence = (count + 1).toString().padStart(6, '0');
     return `FARM-${sequence}`;
   }
