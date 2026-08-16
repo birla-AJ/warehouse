@@ -8,7 +8,7 @@ export class ReportsService {
   async inventory(organizationId: string) {
     const bags = await this.prisma.bag.findMany({
       where: { farmer: { organizationId }, deletedAt: null, status: 'IN_STORAGE' },
-      include: { farmer: true, crop: true, position: true },
+      include: { farmer: true, crop: true, rack: true },
       orderBy: { receivedAt: 'desc' },
     });
 
@@ -19,7 +19,7 @@ export class ReportsService {
       cropName: b.crop.name,
       grade: b.grade,
       weightKg: Number(b.weightKg),
-      locationCode: b.position?.locationCode ?? 'Unassigned',
+      locationCode: b.rack?.locationCode ?? 'Unassigned',
       receivedAt: b.receivedAt.toISOString(),
     }));
   }
@@ -76,24 +76,22 @@ export class ReportsService {
     const warehouses = await this.prisma.warehouse.findMany({
       where: { organizationId, deletedAt: null },
       include: {
-        zones: {
-          include: { blocks: { include: { rows: { include: { racks: { include: { levels: { include: { positions: true } } } } } } } } },
+        floors: {
+          include: { chambers: { include: { racks: true } } },
         },
       },
     });
 
     return warehouses.map((wh) => {
-      const positions = wh.zones.flatMap((z) =>
-        z.blocks.flatMap((b) => b.rows.flatMap((r) => r.racks.flatMap((rk) => rk.levels.flatMap((l) => l.positions)))),
-      );
-      const total = positions.length;
-      const occupied = positions.filter((p) => p.status === 'PARTIAL' || p.status === 'FULL').length;
+      const racks = wh.floors.flatMap((f) => f.chambers.flatMap((c) => c.racks));
+      const total = racks.length;
+      const occupied = racks.filter((r) => r.status === 'PARTIAL' || r.status === 'FULL').length;
 
       return {
         warehouseCode: wh.code,
         warehouseName: wh.name,
-        totalPositions: total,
-        occupiedPositions: occupied,
+        totalRacks: total,
+        occupiedRacks: occupied,
         occupancyPercent: total === 0 ? 0 : Math.round((occupied / total) * 10000) / 100,
       };
     });

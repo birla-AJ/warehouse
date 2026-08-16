@@ -10,14 +10,14 @@ export class CreateLocationNodeDto {
   name?: string;
 }
 
-export class CreatePositionDto extends CreateLocationNodeDto {
+export class CreateRackDto extends CreateLocationNodeDto {
   @IsOptional()
   @IsNumber()
   @Min(0.01)
   capacity?: number;
 }
 
-export class UpdatePositionStatusDto {
+export class UpdateRackStatusDto {
   @IsIn(['EMPTY', 'PARTIAL', 'FULL', 'DISABLED'])
   status: 'EMPTY' | 'PARTIAL' | 'FULL' | 'DISABLED';
 }

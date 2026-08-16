@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { LocationsService } from './locations.service';
-import { CreateLocationNodeDto, CreatePositionDto, UpdatePositionStatusDto } from './dto/location.dto';
+import { CreateLocationNodeDto, CreateRackDto, UpdateRackStatusDto } from './dto/location.dto';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 
 @ApiTags('locations')
@@ -9,51 +9,33 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 export class LocationsController {
   constructor(private service: LocationsService) {}
 
-  @Post('warehouses/:warehouseId/zones')
+  @Post('warehouses/:warehouseId/floors')
   @Permissions({ module: 'warehouses', action: 'update' })
-  createZone(@Param('warehouseId') warehouseId: string, @Body() dto: CreateLocationNodeDto) {
-    return this.service.createZone(warehouseId, dto);
+  createFloor(@Param('warehouseId') warehouseId: string, @Body() dto: CreateLocationNodeDto) {
+    return this.service.createFloor(warehouseId, dto);
   }
 
-  @Post('zones/:zoneId/blocks')
+  @Post('floors/:floorId/chambers')
   @Permissions({ module: 'warehouses', action: 'update' })
-  createBlock(@Param('zoneId') zoneId: string, @Body() dto: CreateLocationNodeDto) {
-    return this.service.createBlock(zoneId, dto);
+  createChamber(@Param('floorId') floorId: string, @Body() dto: CreateLocationNodeDto) {
+    return this.service.createChamber(floorId, dto);
   }
 
-  @Post('blocks/:blockId/rows')
+  @Post('chambers/:chamberId/racks')
   @Permissions({ module: 'warehouses', action: 'update' })
-  createRow(@Param('blockId') blockId: string, @Body() dto: CreateLocationNodeDto) {
-    return this.service.createRow(blockId, dto);
+  createRack(@Param('chamberId') chamberId: string, @Body() dto: CreateRackDto) {
+    return this.service.createRack(chamberId, dto);
   }
 
-  @Post('rows/:rowId/racks')
-  @Permissions({ module: 'warehouses', action: 'update' })
-  createRack(@Param('rowId') rowId: string, @Body() dto: CreateLocationNodeDto) {
-    return this.service.createRack(rowId, dto);
-  }
-
-  @Post('racks/:rackId/levels')
-  @Permissions({ module: 'warehouses', action: 'update' })
-  createLevel(@Param('rackId') rackId: string, @Body() dto: CreateLocationNodeDto) {
-    return this.service.createLevel(rackId, dto);
-  }
-
-  @Post('levels/:levelId/positions')
-  @Permissions({ module: 'warehouses', action: 'update' })
-  createPosition(@Param('levelId') levelId: string, @Body() dto: CreatePositionDto) {
-    return this.service.createPosition(levelId, dto);
-  }
-
-  @Get('positions/:locationCode')
+  @Get('racks/:locationCode')
   @Permissions({ module: 'warehouses', action: 'read' })
-  getPosition(@Param('locationCode') locationCode: string) {
-    return this.service.getPositionByCode(locationCode);
+  getRack(@Param('locationCode') locationCode: string) {
+    return this.service.getRackByCode(locationCode);
   }
 
-  @Patch('positions/:positionId/status')
+  @Patch('racks/:rackId/status')
   @Permissions({ module: 'warehouses', action: 'update' })
-  setStatus(@Param('positionId') positionId: string, @Body() dto: UpdatePositionStatusDto) {
-    return this.service.setPositionStatus(positionId, dto);
+  setStatus(@Param('rackId') rackId: string, @Body() dto: UpdateRackStatusDto) {
+    return this.service.setRackStatus(rackId, dto);
   }
 }

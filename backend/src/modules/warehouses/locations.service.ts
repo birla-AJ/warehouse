@@ -1,139 +1,144 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { WarehousesRepository } from './warehouses.repository';
-import { CreateLocationNodeDto, CreatePositionDto, UpdatePositionStatusDto } from './dto/location.dto';
+import { CreateLocationNodeDto, CreateRackDto, UpdateRackStatusDto } from './dto/location.dto';
 
 @Injectable()
 export class LocationsService {
   constructor(private repo: WarehousesRepository) {}
 
-  async createZone(warehouseId: string, dto: CreateLocationNodeDto) {
-    const warehouse = await this.repo.findById(warehouseId);
-    if (!warehouse) throw new NotFoundException('Warehouse not found');
+  async createFloor(warehouseId: string, dto: CreateLocationNodeDto) {
+    return this.createFloorInternal(warehouseId, dto);
+  }
 
+  private async createFloorInternal(warehouseId: string, dto: CreateLocationNodeDto) {
     return this.repo
-      .createZone({
+      .createFloor({
         code: dto.code,
         name: dto.name,
         warehouse: { connect: { id: warehouseId } },
       })
       .catch(() => {
-        throw new ConflictException('Zone code already exists in this warehouse');
+        throw new ConflictException('Floor code already exists in this warehouse');
       });
   }
 
-  async createBlock(zoneId: string, dto: CreateLocationNodeDto) {
-    const zone = await this.repo.findZone(zoneId);
-    if (!zone) throw new NotFoundException('Zone not found');
+  async createChamber(floorId: string, dto: CreateLocationNodeDto) {
+    const floor = await this.repo.findFloor(floorId);
+    if (!floor) throw new NotFoundException('Floor not found');
 
     return this.repo
-      .createBlock({ code: dto.code, name: dto.name, zone: { connect: { id: zoneId } } })
+      .createChamber({ code: dto.code, name: dto.name, floor: { connect: { id: floorId } } })
       .catch(() => {
-        throw new ConflictException('Block code already exists in this zone');
+        throw new ConflictException('Chamber code already exists on this floor');
       });
   }
 
-  async createRow(blockId: string, dto: CreateLocationNodeDto) {
-    const block = await this.repo.findBlock(blockId);
-    if (!block) throw new NotFoundException('Block not found');
+  async createRack(chamberId: string, dto: CreateRackDto) {
+    const chamber = await this.repo.findChamber(chamberId);
+    if (!chamber) throw new NotFoundException('Chamber not found');
+
+    const { floor } = chamber;
+    const { warehouse } = floor;
+    const locationCode = buildLocationCode(warehouse.code, floor.code, chamber.code, dto.code);
 
     return this.repo
-      .createRow({ code: dto.code, name: dto.name, block: { connect: { id: blockId } } })
-      .catch(() => {
-        throw new ConflictException('Row code already exists in this block');
-      });
-  }
-
-  async createRack(rowId: string, dto: CreateLocationNodeDto) {
-    const row = await this.repo.findRow(rowId);
-    if (!row) throw new NotFoundException('Row not found');
-
-    return this.repo
-      .createRack({ code: dto.code, name: dto.name, row: { connect: { id: rowId } } })
-      .catch(() => {
-        throw new ConflictException('Rack code already exists in this row');
-      });
-  }
-
-  async createLevel(rackId: string, dto: CreateLocationNodeDto) {
-    const rack = await this.repo.findRack(rackId);
-    if (!rack) throw new NotFoundException('Rack not found');
-
-    return this.repo
-      .createLevel({ code: dto.code, name: dto.name, rack: { connect: { id: rackId } } })
-      .catch(() => {
-        throw new ConflictException('Level code already exists in this rack');
-      });
-  }
-
-  async createPosition(levelId: string, dto: CreatePositionDto) {
-    const level = await this.repo.findLevel(levelId);
-    if (!level) throw new NotFoundException('Level not found');
-
-    const { rack } = level;
-    const { row } = rack;
-    const { block } = row;
-    const { zone } = block;
-    const { warehouse } = zone;
-
-    const locationCode = [
-      warehouse.code,
-      `Z${zone.code}`,
-      `B${block.code}`,
-      `RW${row.code}`,
-      `RK${rack.code}`,
-      `L${level.code}`,
-      `P${dto.code}`,
-    ].join('-');
-
-    return this.repo
-      .createPosition({
+      .createRack({
         code: dto.code,
+        name: dto.name,
         locationCode,
         capacity: dto.capacity ?? 1,
-        level: { connect: { id: levelId } },
+        chamber: { connect: { id: chamberId } },
       })
       .catch(() => {
-        throw new ConflictException('Position code already exists at this level, or location code collided');
+        throw new ConflictException('Rack code already exists in this chamber, or location code collided');
       });
   }
 
-  async getPositionByCode(locationCode: string) {
-    const position = await this.repo.findPositionByCode(locationCode);
-    if (!position) throw new NotFoundException('Position not found');
-    return position;
+  async getRackByCode(locationCode: string) {
+    const rack = await this.repo.findRackByLocationCode(locationCode);
+    if (!rack) throw new NotFoundException('Rack not found');
+    return rack;
   }
 
   /**
-   * Manual status override (e.g. marking a position DISABLED for maintenance).
+   * Resolves the storage spot for a batch from just the three inputs the
+   * "Assign location" screen collects (floor / chamber / rack codes),
+   * auto-creating any Floor, Chamber, or Rack that doesn't exist yet under
+   * the organization's warehouse. This lets staff type a location straight
+   * in without pre-building the warehouse layout node-by-node first.
+   */
+  async resolveOrCreateRack(organizationId: string, floorCode: string, chamberCode: string, rackCode: string) {
+    const warehouse = await this.repo.findDefaultWarehouse(organizationId);
+    if (!warehouse) {
+      throw new BadRequestException('No warehouse is set up for this organization yet');
+    }
+
+    const floor =
+      (await this.repo.findFloorByCode(warehouse.id, floorCode)) ??
+      (await this.createFloorInternal(warehouse.id, { code: floorCode }).catch(async () => {
+        // Lost a create race — someone else just made this floor code.
+        return this.repo.findFloorByCode(warehouse.id, floorCode);
+      }));
+    if (!floor) throw new BadRequestException('Could not resolve floor');
+
+    const chamber =
+      (await this.repo.findChamberByCode(floor.id, chamberCode)) ??
+      (await this.repo
+        .createChamber({ code: chamberCode, floor: { connect: { id: floor.id } } })
+        .catch(async () => this.repo.findChamberByCode(floor.id, chamberCode)));
+    if (!chamber) throw new BadRequestException('Could not resolve chamber');
+
+    let rack = await this.repo.findRackByCodeInChamber(chamber.id, rackCode);
+    if (!rack) {
+      const locationCode = buildLocationCode(warehouse.code, floorCode, chamberCode, rackCode);
+      rack = await this.repo
+        .createRack({
+          code: rackCode,
+          locationCode,
+          chamber: { connect: { id: chamber.id } },
+        })
+        .catch(async () => this.repo.findRackByCodeInChamber(chamber.id, rackCode));
+    }
+    if (!rack) throw new BadRequestException('Could not resolve rack');
+
+    return rack;
+  }
+
+  /**
+   * Manual status override (e.g. marking a rack DISABLED for maintenance).
    * Normal EMPTY/PARTIAL/FULL transitions are driven automatically by the
    * Inventory module as bags are placed/removed — see recalculateStatus().
    */
-  async setPositionStatus(positionId: string, dto: UpdatePositionStatusDto) {
-    return this.repo.updatePosition(positionId, { status: dto.status });
+  async setRackStatus(rackId: string, dto: UpdateRackStatusDto) {
+    return this.repo.updateRack(rackId, { status: dto.status });
   }
 
   /**
    * Recomputes EMPTY/PARTIAL/FULL from currentLoad vs capacity.
    * Called by the Inventory module after any bag placement/removal.
-   * Exported for reuse — never called with a DISABLED position (skip those).
+   * Exported for reuse — never called with a DISABLED rack (skip those).
    * Accepts an optional transaction client so BagsService can run the whole
-   * move/damage/dispatch operation (bag update + movement log + position
+   * move/damage/dispatch operation (bag update + movement log + rack
    * load/status recalc) atomically instead of as separate, individually
    * committed writes — avoids a lost-update race under concurrent moves.
    */
-  async recalculateStatus(positionId: string, currentLoad: number, tx?: Prisma.TransactionClient) {
+  async recalculateStatus(rackId: string, currentLoad: number, tx?: Prisma.TransactionClient) {
     if (currentLoad < 0) throw new BadRequestException('currentLoad cannot be negative');
 
-    const position = await this.repo.updatePosition(positionId, { currentLoad }, tx);
+    const rack = await this.repo.updateRack(rackId, { currentLoad }, tx);
     let status: 'EMPTY' | 'PARTIAL' | 'FULL' = 'EMPTY';
-    if (position.status !== 'DISABLED') {
+    if (rack.status !== 'DISABLED') {
       if (currentLoad <= 0) status = 'EMPTY';
-      else if (currentLoad >= Number(position.capacity)) status = 'FULL';
+      else if (currentLoad >= Number(rack.capacity)) status = 'FULL';
       else status = 'PARTIAL';
 
-      return this.repo.updatePosition(positionId, { status }, tx);
+      return this.repo.updateRack(rackId, { status }, tx);
     }
-    return position;
+    return rack;
   }
+}
+
+function buildLocationCode(warehouseCode: string, floorCode: string, chamberCode: string, rackCode: string) {
+  return [warehouseCode, `F${floorCode}`, `C${chamberCode}`, `R${rackCode}`].join('-');
 }

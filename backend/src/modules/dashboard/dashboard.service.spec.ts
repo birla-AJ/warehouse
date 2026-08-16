@@ -13,7 +13,7 @@ describe('DashboardService', () => {
       dispatch: { count: jest.fn() },
       farmer: { count: jest.fn() },
       invoice: { findMany: jest.fn() },
-      position: { findMany: jest.fn() },
+      rack: { findMany: jest.fn() },
       crop: { findMany: jest.fn() },
     };
 
@@ -35,7 +35,7 @@ describe('DashboardService', () => {
     prisma.invoice.findMany.mockResolvedValue([
       { totalAmount: 300, payments: [{ amount: 100 }] },
     ]);
-    prisma.position.findMany.mockResolvedValue([{ status: 'FULL' }, { status: 'EMPTY' }, { status: 'PARTIAL' }]);
+    prisma.rack.findMany.mockResolvedValue([{ status: 'FULL' }, { status: 'EMPTY' }, { status: 'PARTIAL' }]);
     prisma.crop.findMany.mockResolvedValue([{ id: 'c1', name: 'Potato' }]);
 
     const result = await service.getSummary('org1');
@@ -48,21 +48,21 @@ describe('DashboardService', () => {
     expect(result.pendingBillsTotal).toBe(200);
     expect(result.cropDistribution).toEqual([{ cropId: 'c1', cropName: 'Potato', bagCount: 5 }]);
     expect(result.warehouseOccupancy).toEqual({
-      totalPositions: 3,
-      occupiedPositions: 2,
-      availablePositions: 1,
+      totalRacks: 3,
+      occupiedRacks: 2,
+      availableRacks: 1,
       occupancyPercent: 66.67,
     });
   });
 
-  it('handles zero payments and zero positions without dividing by zero', async () => {
+  it('handles zero payments and zero racks without dividing by zero', async () => {
     prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: null } });
     prisma.bag.count.mockResolvedValue(0);
     prisma.dispatch.count.mockResolvedValue(0);
     prisma.farmer.count.mockResolvedValue(0);
     prisma.bag.groupBy.mockResolvedValue([]);
     prisma.invoice.findMany.mockResolvedValue([]);
-    prisma.position.findMany.mockResolvedValue([]);
+    prisma.rack.findMany.mockResolvedValue([]);
     prisma.crop.findMany.mockResolvedValue([]);
 
     const result = await service.getSummary('org1');

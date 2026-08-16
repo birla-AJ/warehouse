@@ -12,22 +12,23 @@ describe('BagsService', () => {
   // Fake transaction client: runs the callback with a marker object standing
   // in for Prisma's `tx`. Individual repo method mocks below ignore this
   // extra argument (jest mocks don't care about arity), so existing
-  // assertions on the *business* args (position id, delta, etc.) keep working.
+  // assertions on the *business* args (rack id, delta, etc.) keep working.
   const fakeTx = { marker: 'tx' };
 
   beforeEach(async () => {
     repo = {
       countAll: jest.fn().mockResolvedValue(0),
-      findPosition: jest.fn(),
+      findRack: jest.fn(),
       create: jest.fn(),
       createMovement: jest.fn(),
       findById: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
+      findBatchBagsInStorage: jest.fn(),
       runInTransaction: jest.fn((fn: (tx: any) => Promise<any>) => fn(fakeTx)),
     };
-    locationsService = { recalculateStatus: jest.fn() };
+    locationsService = { recalculateStatus: jest.fn(), resolveOrCreateRack: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -40,104 +41,88 @@ describe('BagsService', () => {
     service = moduleRef.get(BagsService);
   });
 
-  it('rejects intake into a FULL position', async () => {
-    repo.findPosition.mockResolvedValue({ id: 'pos1', status: 'FULL', currentLoad: 5 });
+  it('rejects intake into a FULL rack', async () => {
+    repo.findRack.mockResolvedValue({ id: 'rack1', status: 'FULL', currentLoad: 5 });
 
     await expect(
-      service.create({ farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, positionId: 'pos1' } as any),
+      service.create('org1', { farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, rackId: 'rack1' } as any),
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('rejects intake into a DISABLED position', async () => {
-    repo.findPosition.mockResolvedValue({ id: 'pos1', status: 'DISABLED', currentLoad: 0 });
+  it('rejects intake into a DISABLED rack', async () => {
+    repo.findRack.mockResolvedValue({ id: 'rack1', status: 'DISABLED', currentLoad: 0 });
 
     await expect(
-      service.create({ farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, positionId: 'pos1' } as any),
+      service.create('org1', { farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, rackId: 'rack1' } as any),
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('bumps position load on successful intake', async () => {
-    repo.findPosition
-      .mockResolvedValueOnce({ id: 'pos1', status: 'EMPTY', currentLoad: 0 }) // availability check
-      .mockResolvedValueOnce({ id: 'pos1', status: 'EMPTY', currentLoad: 0 }); // bumpPositionLoad lookup
+  it('bumps rack load on successful intake', async () => {
+    repo.findRack
+      .mockResolvedValueOnce({ id: 'rack1', status: 'EMPTY', currentLoad: 0 }) // availability check
+      .mockResolvedValueOnce({ id: 'rack1', status: 'EMPTY', currentLoad: 0 }); // bumpRackLoad lookup
+    repo.findFarmerAndCropCodes = jest.fn().mockResolvedValue({ farmerCode: 'FARM-1', cropName: 'Chilli' });
+    repo.findBatchIdsByPrefix = jest.fn().mockResolvedValue([]);
     repo.create.mockResolvedValue({ id: 'bag1', bagCode: 'BAG-00000001' });
 
-    await service.create({ farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, positionId: 'pos1' } as any);
+    await service.create('org1', { farmerId: 'f1', cropId: 'c1', bagTypeId: 'bt1', weightKg: 50, rackId: 'rack1' } as any);
 
     expect(repo.runInTransaction).toHaveBeenCalled();
-    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('pos1', 1, fakeTx);
+    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('rack1', 1, fakeTx);
   });
 
-  it('rejects moving a bag that is not IN_STORAGE', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'DISPATCHED', positionId: 'pos1' });
+  it('throws NotFoundException when no in-storage bags exist for the batch', async () => {
+    repo.findBatchBagsInStorage.mockResolvedValue([]);
 
-    await expect(service.move('bag1', { toPositionId: 'pos2' } as any)).rejects.toThrow(BadRequestException);
+    await expect(
+      service.moveBatch('org1', 'BATCH-1', { floorCode: '1', chamberCode: 'A', rackCode: '12' } as any),
+    ).rejects.toThrow(NotFoundException);
   });
 
-  it('rejects moving to the same position', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'IN_STORAGE', positionId: 'pos1' });
+  it('rejects moving to a FULL rack', async () => {
+    repo.findBatchBagsInStorage.mockResolvedValue([{ id: 'bag1', rackId: null }]);
+    locationsService.resolveOrCreateRack.mockResolvedValue({ id: 'rack1', status: 'FULL', locationCode: 'WH1-F1-CA-R12' });
+    repo.findRack.mockResolvedValue({ id: 'rack1', status: 'FULL' });
 
-    await expect(service.move('bag1', { toPositionId: 'pos1' } as any)).rejects.toThrow(BadRequestException);
+    await expect(
+      service.moveBatch('org1', 'BATCH-1', { floorCode: '1', chamberCode: 'A', rackCode: '12' } as any),
+    ).rejects.toThrow(BadRequestException);
   });
 
-  it('decrements old position and increments new position on move', async () => {
-    repo.findById
-      .mockResolvedValueOnce({ id: 'bag1', status: 'IN_STORAGE', positionId: 'pos1' }) // getById in move()
-      .mockResolvedValueOnce({ id: 'bag1', status: 'IN_STORAGE', positionId: 'pos2' }); // getById at end
-    repo.findPosition
-      .mockResolvedValueOnce({ id: 'pos2', status: 'EMPTY', currentLoad: 0 }) // availability check
-      .mockResolvedValueOnce({ id: 'pos1', currentLoad: 3 }) // bump old
-      .mockResolvedValueOnce({ id: 'pos2', currentLoad: 0 }); // bump new
+  it('moves every in-storage bag of a batch to the resolved rack, bumping loads', async () => {
+    repo.findBatchBagsInStorage.mockResolvedValue([
+      { id: 'bag1', rackId: 'oldRack' },
+      { id: 'bag2', rackId: null },
+    ]);
+    locationsService.resolveOrCreateRack.mockResolvedValue({ id: 'newRack', status: 'EMPTY', locationCode: 'WH1-F1-CA-R12' });
+    repo.findRack
+      .mockResolvedValueOnce({ id: 'newRack', status: 'EMPTY' }) // availability check
+      .mockResolvedValueOnce({ id: 'oldRack', currentLoad: 3 }) // bump old (bag1)
+      .mockResolvedValueOnce({ id: 'newRack', currentLoad: 0 }) // bump new (bag1)
+      .mockResolvedValueOnce({ id: 'newRack', currentLoad: 1 }); // bump new (bag2)
 
-    await service.move('bag1', { toPositionId: 'pos2' } as any);
+    const result = await service.moveBatch('org1', 'BATCH-1', { floorCode: '1', chamberCode: 'A', rackCode: '12' } as any);
 
+    expect(locationsService.resolveOrCreateRack).toHaveBeenCalledWith('org1', '1', 'A', '12');
     expect(repo.runInTransaction).toHaveBeenCalled();
-    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('pos1', 2, fakeTx);
-    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('pos2', 1, fakeTx);
+    expect(result.locationCode).toBe('WH1-F1-CA-R12');
+    expect(result.bagsMoved).toBe(2);
   });
 
-  it('marking a bag damaged frees its position', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'IN_STORAGE', positionId: 'pos1' });
+  it('marking bags damaged frees their racks', async () => {
+    repo.findBatchBagsInStorage.mockResolvedValue([{ id: 'bag1', rackId: 'rack1', weightKg: 50 }]);
     repo.update.mockResolvedValue({ id: 'bag1', status: 'DAMAGED' });
-    repo.findPosition.mockResolvedValue({ id: 'pos1', currentLoad: 2 });
+    repo.findRack.mockResolvedValue({ id: 'rack1', currentLoad: 2 });
 
-    await service.markDamaged('bag1', { note: 'wet bag' } as any);
+    const result = await service.damageBatch('org1', 'BATCH-1', { bagCount: 1, note: 'wet bag' } as any);
 
     expect(repo.runInTransaction).toHaveBeenCalled();
-    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('pos1', 1, fakeTx);
+    expect(locationsService.recalculateStatus).toHaveBeenCalledWith('rack1', 1, fakeTx);
+    expect(result.damagedCount).toBe(1);
   });
 
   it('throws NotFoundException for an unknown bag', async () => {
     repo.findById.mockResolvedValue(null);
-    await expect(service.getById('missing')).rejects.toThrow(NotFoundException);
-  });
-
-  it('reserve() rejects a bag that is not IN_STORAGE', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'DISPATCHED' });
-    await expect(service.reserve('bag1')).rejects.toThrow(BadRequestException);
-  });
-
-  it('reserve() transitions IN_STORAGE to RESERVED', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'IN_STORAGE' });
-    repo.update.mockResolvedValue({ id: 'bag1', status: 'RESERVED' });
-
-    const result = await service.reserve('bag1');
-    expect(repo.update).toHaveBeenCalledWith('bag1', { status: 'RESERVED' });
-    expect(result.status).toBe('RESERVED');
-  });
-
-  it('unreserve() rejects a bag that is not RESERVED', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'IN_STORAGE' });
-    await expect(service.unreserve('bag1')).rejects.toThrow(BadRequestException);
-  });
-
-  it('markDispatched() accepts a RESERVED bag', async () => {
-    repo.findById.mockResolvedValue({ id: 'bag1', status: 'RESERVED', positionId: 'pos1' });
-    repo.update.mockResolvedValue({ id: 'bag1', status: 'DISPATCHED' });
-    repo.findPosition.mockResolvedValue({ id: 'pos1', currentLoad: 1 });
-
-    const result = await service.markDispatched('bag1');
-    expect(repo.runInTransaction).toHaveBeenCalled();
-    expect(result.status).toBe('DISPATCHED');
+    await expect(service.getById('missing', 'org1')).rejects.toThrow(NotFoundException);
   });
 });

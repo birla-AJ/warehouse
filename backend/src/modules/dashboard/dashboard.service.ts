@@ -46,8 +46,8 @@ export class DashboardService {
         where: { farmer: { organizationId }, status: { in: ['PENDING', 'PARTIAL', 'OVERDUE'] } },
         include: { payments: true },
       }),
-      this.prisma.position.findMany({
-        where: { level: { rack: { row: { block: { zone: { warehouse: { organizationId, deletedAt: null } } } } } }, deletedAt: null },
+      this.prisma.rack.findMany({
+        where: { chamber: { floor: { warehouse: { organizationId, deletedAt: null } } }, deletedAt: null },
         select: { status: true },
       }),
     ]);
@@ -63,8 +63,8 @@ export class DashboardService {
       return sum + (Number(inv.totalAmount) - paid);
     }, 0);
 
-    const totalPositions = occupancyRows.length;
-    const occupiedPositions = occupancyRows.filter((p) => p.status === 'PARTIAL' || p.status === 'FULL').length;
+    const totalRacks = occupancyRows.length;
+    const occupiedRacks = occupancyRows.filter((p) => p.status === 'PARTIAL' || p.status === 'FULL').length;
 
     return {
       todayRevenue: Number(todayRevenueAgg._sum.amount ?? 0),
@@ -81,10 +81,10 @@ export class DashboardService {
         bagCount: row._count,
       })),
       warehouseOccupancy: {
-        totalPositions,
-        occupiedPositions,
-        availablePositions: totalPositions - occupiedPositions,
-        occupancyPercent: totalPositions === 0 ? 0 : Math.round((occupiedPositions / totalPositions) * 10000) / 100,
+        totalRacks,
+        occupiedRacks,
+        availableRacks: totalRacks - occupiedRacks,
+        occupancyPercent: totalRacks === 0 ? 0 : Math.round((occupiedRacks / totalRacks) * 10000) / 100,
       },
     };
   }

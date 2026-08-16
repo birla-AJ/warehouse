@@ -55,7 +55,7 @@ export class BagsService {
    * Intake: creates every physical bag for this delivery, generating each
    * one's QR code, and stamps them all with one auto-generated batch code
    * (farmerCode-cropCode-date-seq). Bags are intentionally left unassigned
-   * to a position here — storage location is now a batch-level action
+   * to a rack here — storage location is now a batch-level action
    * (see moveBatch) done after receiving, not part of intake.
    */
   async create(organizationId: string, dto: CreateBagDto, performedById?: string) {
@@ -92,8 +92,8 @@ export class BagsService {
     const bagCode = await this.generateBagCode();
     const qrCode = QrUtil.generateToken(bagCode);
 
-    if (dto.positionId) {
-      await this.assertPositionAvailable(dto.positionId);
+    if (dto.rackId) {
+      await this.assertRackAvailable(dto.rackId);
     }
 
     return this.repo.runInTransaction(async (tx) => {
@@ -107,23 +107,23 @@ export class BagsService {
           batchId: dto.batchId,
           grade: dto.grade ?? 'A',
           weightKg: dto.weightKg,
-          position: dto.positionId ? { connect: { id: dto.positionId } } : undefined,
+          rack: dto.rackId ? { connect: { id: dto.rackId } } : undefined,
         },
         tx,
       );
 
-      if (dto.positionId) {
+      if (dto.rackId) {
         await this.repo.createMovement(
           {
             bag: { connect: { id: bag.id } },
             type: 'RECEIVE',
-            toPositionId: dto.positionId,
+            toRackId: dto.rackId,
             quantity: 1,
             performedById,
           },
           tx,
         );
-        await this.bumpPositionLoad(dto.positionId, +1, tx);
+        await this.bumpRackLoad(dto.rackId, +1, tx);
       }
 
       return bag;
@@ -182,12 +182,12 @@ export class BagsService {
     ]);
 
     const batchIds = representatives.map((b) => b.batchId);
-    const [statusRows, positionRows] = await Promise.all([
+    const [statusRows, rackRows] = await Promise.all([
       batchIds.length ? this.repo.groupBatchStatus(organizationId, batchIds) : Promise.resolve([]),
-      batchIds.length ? this.repo.findBatchPositions(organizationId, batchIds) : Promise.resolve([]),
+      batchIds.length ? this.repo.findBatchRacks(organizationId, batchIds) : Promise.resolve([]),
     ]);
 
-    const positionByBatch = new Map(positionRows.map((b) => [b.batchId, b.position]));
+    const rackByBatch = new Map(rackRows.map((b) => [b.batchId, b.rack]));
 
     const items = representatives.map((rep) => {
       const rows = statusRows.filter((r) => r.batchId === rep.batchId);
@@ -215,7 +215,7 @@ export class BagsService {
         damagedCount,
         dispatchedCount,
         weightKg: Number(inStorageRow?._sum.weightKg ?? 0),
-        position: positionByBatch.get(rep.batchId) ?? null,
+        rack: rackByBatch.get(rep.batchId) ?? null,
         status,
       };
     });
@@ -226,28 +226,34 @@ export class BagsService {
   /**
    * Assigns (or changes) the storage location for an entire batch in one
    * shot — every IN_STORAGE bag in the batch moves together, since bags of
-   * the same batch are always kept in the same spot.
+   * the same batch are always kept in the same spot. Location is decided
+   * purely by floor + chamber + rack; any of the three that doesn't exist
+   * yet is created on the fly.
    */
   async moveBatch(organizationId: string, batchId: string, dto: MoveBatchDto, performedById?: string) {
     const bags = await this.repo.findBatchBagsInStorage(organizationId, batchId);
     if (bags.length === 0) throw new NotFoundException('No in-storage bags found for this batch');
 
-    const position = await this.repo.findPositionByCode(dto.locationCode);
-    if (!position) throw new NotFoundException(`No storage location found for code "${dto.locationCode}"`);
-    await this.assertPositionAvailable(position.id);
+    const rack = await this.locationsService.resolveOrCreateRack(
+      organizationId,
+      dto.floorCode,
+      dto.chamberCode,
+      dto.rackCode,
+    );
+    await this.assertRackAvailable(rack.id);
 
     await this.repo.runInTransaction(async (tx) => {
       for (const bag of bags) {
-        const fromPositionId = bag.positionId;
-        if (fromPositionId === position.id) continue;
+        const fromRackId = bag.rackId;
+        if (fromRackId === rack.id) continue;
 
-        await this.repo.update(bag.id, { position: { connect: { id: position.id } } }, tx);
+        await this.repo.update(bag.id, { rack: { connect: { id: rack.id } } }, tx);
         await this.repo.createMovement(
           {
             bag: { connect: { id: bag.id } },
-            type: fromPositionId ? 'TRANSFER' : 'RECEIVE',
-            fromPositionId: fromPositionId ?? undefined,
-            toPositionId: position.id,
+            type: fromRackId ? 'TRANSFER' : 'RECEIVE',
+            fromRackId: fromRackId ?? undefined,
+            toRackId: rack.id,
             quantity: 1,
             note: dto.note,
             performedById,
@@ -255,18 +261,18 @@ export class BagsService {
           tx,
         );
 
-        if (fromPositionId) await this.bumpPositionLoad(fromPositionId, -1, tx);
-        await this.bumpPositionLoad(position.id, +1, tx);
+        if (fromRackId) await this.bumpRackLoad(fromRackId, -1, tx);
+        await this.bumpRackLoad(rack.id, +1, tx);
       }
     });
 
-    return { batchId, locationCode: dto.locationCode, bagsMoved: bags.length };
+    return { batchId, locationCode: rack.locationCode, bagsMoved: bags.length };
   }
 
   /**
    * Marks `count` bags of a batch DAMAGED (oldest bag-codes first — an
    * arbitrary but stable choice since individual bags aren't distinguished
-   * in the UI) and frees their positions. Weight removed is the actual sum
+   * in the UI) and frees their racks. Weight removed is the actual sum
    * of those bags' recorded weights, not an estimate.
    */
   async damageBatch(organizationId: string, batchId: string, dto: DamageBatchDto, performedById?: string) {
@@ -286,14 +292,14 @@ export class BagsService {
           {
             bag: { connect: { id: bag.id } },
             type: 'DAMAGE',
-            fromPositionId: bag.positionId ?? undefined,
+            fromRackId: bag.rackId ?? undefined,
             quantity: 1,
             note: dto.note,
             performedById,
           },
           tx,
         );
-        if (bag.positionId) await this.bumpPositionLoad(bag.positionId, -1, tx);
+        if (bag.rackId) await this.bumpRackLoad(bag.rackId, -1, tx);
         weightKg += Number(bag.weightKg);
       }
     });
@@ -316,18 +322,18 @@ export class BagsService {
 
     await this.repo.runInTransaction(async (tx) => {
       for (const bag of bags) {
-        await this.repo.update(bag.id, { status: 'DISPATCHED', position: { disconnect: true } }, tx);
+        await this.repo.update(bag.id, { status: 'DISPATCHED', rack: { disconnect: true } }, tx);
         await this.repo.createMovement(
           {
             bag: { connect: { id: bag.id } },
             type: 'DISPATCH',
-            fromPositionId: bag.positionId ?? undefined,
+            fromRackId: bag.rackId ?? undefined,
             quantity: 1,
             performedById,
           },
           tx,
         );
-        if (bag.positionId) await this.bumpPositionLoad(bag.positionId, -1, tx);
+        if (bag.rackId) await this.bumpRackLoad(bag.rackId, -1, tx);
       }
     });
 
@@ -375,18 +381,18 @@ export class BagsService {
 
   // ── internal helpers ──────────────────────────────────────
 
-  private async assertPositionAvailable(positionId: string) {
-    const position = await this.repo.findPosition(positionId);
-    if (!position) throw new NotFoundException('Position not found');
-    if (position.status === 'DISABLED') throw new BadRequestException('Position is disabled');
-    if (position.status === 'FULL') throw new BadRequestException('Position is already full');
+  private async assertRackAvailable(rackId: string) {
+    const rack = await this.repo.findRack(rackId);
+    if (!rack) throw new NotFoundException('Rack not found');
+    if (rack.status === 'DISABLED') throw new BadRequestException('Rack is disabled');
+    if (rack.status === 'FULL') throw new BadRequestException('Rack is already full');
   }
 
-  private async bumpPositionLoad(positionId: string, delta: number, tx?: Prisma.TransactionClient) {
-    const position = await this.repo.findPosition(positionId, tx);
-    if (!position) return;
-    const newLoad = Math.max(0, Number(position.currentLoad) + delta);
-    await this.locationsService.recalculateStatus(positionId, newLoad, tx);
+  private async bumpRackLoad(rackId: string, delta: number, tx?: Prisma.TransactionClient) {
+    const rack = await this.repo.findRack(rackId, tx);
+    if (!rack) return;
+    const newLoad = Math.max(0, Number(rack.currentLoad) + delta);
+    await this.locationsService.recalculateStatus(rackId, newLoad, tx);
   }
 
   private async generateBagCode(): Promise<string> {

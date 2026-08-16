@@ -52,9 +52,9 @@ export class WarehousesService {
   }
 
   /**
-   * Full nested layout with occupancy color coding for the visual map:
-   * green = EMPTY, yellow = PARTIAL, red = FULL, grey = DISABLED.
-   * Also rolls up an occupancy summary at each level of the tree.
+   * Full nested layout (Floor → Chamber → Rack) with occupancy color coding
+   * for the visual map: green = EMPTY, yellow = PARTIAL, red = FULL,
+   * grey = DISABLED. Also rolls up an occupancy summary for the warehouse.
    */
   async getLayout(id: string, organizationId: string) {
     const warehouse = await this.repo.getLayout(id, organizationId);
@@ -67,56 +67,41 @@ export class WarehousesService {
       DISABLED: 'grey',
     };
 
-    let totalPositions = 0;
-    let occupiedPositions = 0;
+    let totalRacks = 0;
+    let occupiedRacks = 0;
 
-    const zones = warehouse.zones.map((zone) => ({
-      id: zone.id,
-      code: zone.code,
-      name: zone.name,
-      blocks: zone.blocks.map((block) => ({
-        id: block.id,
-        code: block.code,
-        name: block.name,
-        rows: block.rows.map((row) => ({
-          id: row.id,
-          code: row.code,
-          name: row.name,
-          racks: row.racks.map((rack) => ({
+    const floors = warehouse.floors.map((floor) => ({
+      id: floor.id,
+      code: floor.code,
+      name: floor.name,
+      chambers: floor.chambers.map((chamber) => ({
+        id: chamber.id,
+        code: chamber.code,
+        name: chamber.name,
+        racks: chamber.racks.map((rack) => {
+          totalRacks += 1;
+          if (rack.status === 'PARTIAL' || rack.status === 'FULL') occupiedRacks += 1;
+          return {
             id: rack.id,
             code: rack.code,
-            name: rack.name,
-            levels: rack.levels.map((level) => ({
-              id: level.id,
-              code: level.code,
-              name: level.name,
-              positions: level.positions.map((position) => {
-                totalPositions += 1;
-                if (position.status === 'PARTIAL' || position.status === 'FULL') occupiedPositions += 1;
-                return {
-                  id: position.id,
-                  code: position.code,
-                  locationCode: position.locationCode,
-                  status: position.status,
-                  color: colorMap[position.status],
-                  capacity: position.capacity,
-                  currentLoad: position.currentLoad,
-                };
-              }),
-            })),
-          })),
-        })),
+            locationCode: rack.locationCode,
+            status: rack.status,
+            color: colorMap[rack.status],
+            capacity: rack.capacity,
+            currentLoad: rack.currentLoad,
+          };
+        }),
       })),
     }));
 
     return {
       warehouse: { id: warehouse.id, name: warehouse.name, code: warehouse.code },
       occupancy: {
-        totalPositions,
-        occupiedPositions,
-        occupancyPercent: totalPositions === 0 ? 0 : Math.round((occupiedPositions / totalPositions) * 10000) / 100,
+        totalRacks,
+        occupiedRacks,
+        occupancyPercent: totalRacks === 0 ? 0 : Math.round((occupiedRacks / totalRacks) * 10000) / 100,
       },
-      zones,
+      floors,
     };
   }
 }

@@ -23,6 +23,15 @@ export class WarehousesRepository {
     return this.prisma.warehouse.findUnique({ where: { organizationId_code: { organizationId, code } } });
   }
 
+  /** First active warehouse for the org — used to resolve a Floor/Chamber/Rack
+   * assignment when the caller only supplies the three location codes. */
+  findDefaultWarehouse(organizationId: string) {
+    return this.prisma.warehouse.findFirst({
+      where: { organizationId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   createWarehouse(data: Prisma.WarehouseCreateInput) {
     return this.prisma.warehouse.create({ data });
   }
@@ -40,33 +49,15 @@ export class WarehousesRepository {
     return this.prisma.warehouse.findFirst({
       where: { id: warehouseId, organizationId, deletedAt: null },
       include: {
-        zones: {
+        floors: {
           where: { deletedAt: null },
           orderBy: { code: 'asc' },
           include: {
-            blocks: {
+            chambers: {
               where: { deletedAt: null },
               orderBy: { code: 'asc' },
               include: {
-                rows: {
-                  where: { deletedAt: null },
-                  orderBy: { code: 'asc' },
-                  include: {
-                    racks: {
-                      where: { deletedAt: null },
-                      orderBy: { code: 'asc' },
-                      include: {
-                        levels: {
-                          where: { deletedAt: null },
-                          orderBy: { code: 'asc' },
-                          include: {
-                            positions: { where: { deletedAt: null }, orderBy: { code: 'asc' } },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
+                racks: { where: { deletedAt: null }, orderBy: { code: 'asc' } },
               },
             },
           },
@@ -75,72 +66,49 @@ export class WarehousesRepository {
     });
   }
 
-  // ── Zone / Block / Row / Rack / Level / Position ────────
-  findZone(id: string) {
-    return this.prisma.zone.findFirst({ where: { id, deletedAt: null }, include: { warehouse: true } });
+  // ── Floor / Chamber / Rack ──────────────────────────────
+  findFloor(id: string) {
+    return this.prisma.floor.findFirst({ where: { id, deletedAt: null }, include: { warehouse: true } });
   }
-  createZone(data: Prisma.ZoneCreateInput) {
-    return this.prisma.zone.create({ data });
+  findFloorByCode(warehouseId: string, code: string) {
+    return this.prisma.floor.findFirst({ where: { warehouseId, code, deletedAt: null } });
   }
-
-  findBlock(id: string) {
-    return this.prisma.block.findFirst({
-      where: { id, deletedAt: null },
-      include: { zone: { include: { warehouse: true } } },
-    });
-  }
-  createBlock(data: Prisma.BlockCreateInput) {
-    return this.prisma.block.create({ data });
+  createFloor(data: Prisma.FloorCreateInput) {
+    return this.prisma.floor.create({ data });
   }
 
-  findRow(id: string) {
-    return this.prisma.row.findFirst({
+  findChamber(id: string) {
+    return this.prisma.chamber.findFirst({
       where: { id, deletedAt: null },
-      include: { block: { include: { zone: { include: { warehouse: true } } } } },
+      include: { floor: { include: { warehouse: true } } },
     });
   }
-  createRow(data: Prisma.RowCreateInput) {
-    return this.prisma.row.create({ data });
+  findChamberByCode(floorId: string, code: string) {
+    return this.prisma.chamber.findFirst({ where: { floorId, code, deletedAt: null } });
+  }
+  createChamber(data: Prisma.ChamberCreateInput) {
+    return this.prisma.chamber.create({ data });
   }
 
   findRack(id: string) {
     return this.prisma.rack.findFirst({
       where: { id, deletedAt: null },
-      include: { row: { include: { block: { include: { zone: { include: { warehouse: true } } } } } } },
+      include: { chamber: { include: { floor: { include: { warehouse: true } } } } },
+    });
+  }
+  findRackByCodeInChamber(chamberId: string, code: string) {
+    return this.prisma.rack.findFirst({ where: { chamberId, code, deletedAt: null } });
+  }
+  findRackByLocationCode(locationCode: string) {
+    return this.prisma.rack.findUnique({
+      where: { locationCode },
+      include: { chamber: { include: { floor: { include: { warehouse: true } } } } },
     });
   }
   createRack(data: Prisma.RackCreateInput) {
     return this.prisma.rack.create({ data });
   }
-
-  findLevel(id: string) {
-    return this.prisma.level.findFirst({
-      where: { id, deletedAt: null },
-      include: {
-        rack: { include: { row: { include: { block: { include: { zone: { include: { warehouse: true } } } } } } } },
-      },
-    });
-  }
-  createLevel(data: Prisma.LevelCreateInput) {
-    return this.prisma.level.create({ data });
-  }
-
-  findPositionByCode(locationCode: string) {
-    return this.prisma.position.findUnique({
-      where: { locationCode },
-      include: {
-        level: {
-          include: {
-            rack: { include: { row: { include: { block: { include: { zone: { include: { warehouse: true } } } } } } } },
-          },
-        },
-      },
-    });
-  }
-  createPosition(data: Prisma.PositionCreateInput) {
-    return this.prisma.position.create({ data });
-  }
-  updatePosition(id: string, data: Prisma.PositionUpdateInput, client: Prisma.TransactionClient = this.prisma) {
-    return client.position.update({ where: { id }, data });
+  updateRack(id: string, data: Prisma.RackUpdateInput, client: Prisma.TransactionClient = this.prisma) {
+    return client.rack.update({ where: { id }, data });
   }
 }

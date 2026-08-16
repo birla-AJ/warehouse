@@ -41,12 +41,12 @@ export class CreateBagDto {
 
   @IsOptional()
   @IsUUID()
-  positionId?: string;
+  rackId?: string;
 }
 
 export class MoveBagDto {
   @IsUUID()
-  toPositionId: string;
+  toRackId: string;
 
   @IsOptional()
   @IsString()
@@ -71,10 +71,21 @@ export class DamageBagDto {
 // individual per-bag move/damage/dispatch stays internally for QR/audit
 // purposes but is no longer exposed as separate user actions.
 
+// Location is decided by exactly three inputs — which floor, which
+// chamber on that floor, and which rack in that chamber. Any code that
+// doesn't exist yet is created automatically (see LocationsService).
 export class MoveBatchDto {
   @IsString()
   @MinLength(1)
-  locationCode: string;
+  floorCode: string;
+
+  @IsString()
+  @MinLength(1)
+  chamberCode: string;
+
+  @IsString()
+  @MinLength(1)
+  rackCode: string;
 
   @IsOptional()
   @IsString()

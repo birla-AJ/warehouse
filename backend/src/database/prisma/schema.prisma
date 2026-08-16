@@ -138,7 +138,10 @@ model RolePermission {
 
 // ─────────────────────────────────────────────────────────
 // WAREHOUSES & LOCATION HIERARCHY
-// Warehouse → Zone → Block → Row → Rack → Level → Position
+// A warehouse building has multiple floors; each floor has multiple
+// chambers; each chamber has multiple racks. A bag's storage spot is
+// fully described by just these three codes (Floor, Chamber, Rack).
+// Warehouse → Floor → Chamber → Rack
 // ─────────────────────────────────────────────────────────
 model Warehouse {
   id             String       @id @default(uuid())
@@ -156,7 +159,7 @@ model Warehouse {
   capacityUnit  String        @default("bags") // "bags" | "tonnes" | custom
   totalCapacity Decimal       @default(0)
 
-  zones Zone[]
+  floors  Floor[]
   cameras Camera[]
 
   createdAt DateTime  @default(now())
@@ -168,90 +171,46 @@ model Warehouse {
   @@map("warehouses")
 }
 
-model Zone {
+model Floor {
   id          String    @id @default(uuid())
   warehouseId String
   warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  code        String // e.g. "A"
+  code        String // e.g. "1", "G", "2"
   name        String?
-  blocks      Block[]
+  chambers    Chamber[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
   @@unique([warehouseId, code])
-  @@map("zones")
+  @@map("floors")
 }
 
-model Block {
+model Chamber {
   id        String    @id @default(uuid())
-  zoneId    String
-  zone      Zone      @relation(fields: [zoneId], references: [id])
-  code      String // e.g. "2"
-  name      String?
-  rows      Row[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  @@unique([zoneId, code])
-  @@map("blocks")
-}
-
-model Row {
-  id        String    @id @default(uuid())
-  blockId   String
-  block     Block     @relation(fields: [blockId], references: [id])
-  code      String
+  floorId   String
+  floor     Floor     @relation(fields: [floorId], references: [id])
+  code      String // e.g. "A", "1"
   name      String?
   racks     Rack[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  @@unique([blockId, code])
-  @@map("rows")
+  @@unique([floorId, code])
+  @@map("chambers")
 }
 
 model Rack {
-  id        String    @id @default(uuid())
-  rowId     String
-  row       Row       @relation(fields: [rowId], references: [id])
-  code      String // e.g. "3"
-  name      String?
-  levels    Level[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  @@unique([rowId, code])
-  @@map("racks")
-}
-
-model Level {
-  id        String     @id @default(uuid())
-  rackId    String
-  rack      Rack       @relation(fields: [rackId], references: [id])
-  code      String // e.g. "4"
-  name      String?
-  positions Position[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-  deletedAt DateTime?
-
-  @@unique([rackId, code])
-  @@map("levels")
-}
-
-model Position {
-  id           String         @id @default(uuid())
-  levelId      String
-  level        Level          @relation(fields: [levelId], references: [id])
-  code         String // e.g. "12"
-  locationCode String         @unique // full denormalized path, e.g. WH1-ZA-B2-RW1-RK3-L4-P12
-  status       PositionStatus @default(EMPTY)
-  capacity     Decimal        @default(1) // max bags/units this position can hold
-  currentLoad  Decimal        @default(0)
+  id           String     @id @default(uuid())
+  chamberId    String
+  chamber      Chamber    @relation(fields: [chamberId], references: [id])
+  code         String     // e.g. "12"
+  name         String?
+  locationCode String     @unique // full denormalized path, e.g. WH1-F1-CA-R12
+  status       RackStatus @default(EMPTY)
+  capacity     Decimal    @default(1) // max bags/units this rack can hold
+  currentLoad  Decimal    @default(0)
 
   bags Bag[]
 
@@ -259,13 +218,13 @@ model Position {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  @@unique([levelId, code])
+  @@unique([chamberId, code])
   @@index([locationCode])
   @@index([status])
-  @@map("positions")
+  @@map("racks")
 }
 
-enum PositionStatus {
+enum RackStatus {
   EMPTY
   PARTIAL
   FULL
@@ -437,8 +396,8 @@ model Bag {
   grade    Grade   @default(A)
   weightKg Decimal
 
-  positionId String?
-  position   Position? @relation(fields: [positionId], references: [id])
+  rackId String?
+  rack   Rack?   @relation(fields: [rackId], references: [id])
 
   status     BagStatus @default(IN_STORAGE)
   receivedAt DateTime  @default(now())
@@ -454,7 +413,7 @@ model Bag {
   @@index([farmerId])
   @@index([cropId])
   @@index([status])
-  @@index([positionId])
+  @@index([rackId])
   @@index([batchId])
   @@map("bags")
 }
@@ -479,8 +438,8 @@ model InventoryMovement {
   bagId         String
   bag           Bag          @relation(fields: [bagId], references: [id])
   type          MovementType
-  fromPositionId String?
-  toPositionId   String?
+  fromRackId    String?
+  toRackId      String?
   quantity      Decimal      @default(1)
   note          String?
   performedById String?

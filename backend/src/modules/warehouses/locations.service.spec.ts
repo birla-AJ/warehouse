@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { LocationsService } from './locations.service';
 import { WarehousesRepository } from './warehouses.repository';
 
@@ -10,11 +10,16 @@ describe('LocationsService', () => {
   beforeEach(async () => {
     repo = {
       findById: jest.fn(),
-      findZone: jest.fn(),
-      findLevel: jest.fn(),
-      createZone: jest.fn(),
-      createPosition: jest.fn(),
-      updatePosition: jest.fn(),
+      findFloor: jest.fn(),
+      findChamber: jest.fn(),
+      findDefaultWarehouse: jest.fn(),
+      findFloorByCode: jest.fn(),
+      findChamberByCode: jest.fn(),
+      findRackByCodeInChamber: jest.fn(),
+      createFloor: jest.fn(),
+      createChamber: jest.fn(),
+      createRack: jest.fn(),
+      updateRack: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -24,58 +29,83 @@ describe('LocationsService', () => {
     service = moduleRef.get(LocationsService);
   });
 
-  it('throws NotFoundException when warehouse does not exist for zone creation', async () => {
-    repo.findById.mockResolvedValue(null);
-    await expect(service.createZone('missing', { code: 'A' })).rejects.toThrow(NotFoundException);
+  it('throws NotFoundException when chamber does not exist for rack creation', async () => {
+    repo.findChamber.mockResolvedValue(null);
+    await expect(service.createRack('missing', { code: '12' } as any)).rejects.toThrow(NotFoundException);
   });
 
   it('wraps a unique-constraint failure as ConflictException', async () => {
-    repo.findById.mockResolvedValue({ id: 'wh1' });
-    repo.createZone.mockRejectedValue(new Error('unique constraint'));
+    repo.findFloorByCode = undefined; // not exercised in this test
+    repo.findChamber.mockResolvedValue({
+      id: 'chamber1',
+      floor: { code: '1', warehouse: { code: 'WH1' } },
+    });
+    repo.createRack.mockRejectedValue(new Error('unique constraint'));
 
-    await expect(service.createZone('wh1', { code: 'A' })).rejects.toThrow(ConflictException);
+    await expect(service.createRack('chamber1', { code: '12' } as any)).rejects.toThrow(ConflictException);
   });
 
-  it('generates a correctly formatted locationCode from the full ancestry', async () => {
-    repo.findLevel.mockResolvedValue({
-      id: 'level1',
-      code: '4',
-      rack: {
-        code: '3',
-        row: {
-          code: '1',
-          block: {
-            code: '2',
-            zone: {
-              code: 'A',
-              warehouse: { code: 'WH1' },
-            },
-          },
-        },
-      },
+  it('generates a correctly formatted locationCode from floor + chamber + rack codes', async () => {
+    repo.findChamber.mockResolvedValue({
+      id: 'chamber1',
+      code: 'A',
+      floor: { code: '1', warehouse: { code: 'WH1' } },
     });
-    repo.createPosition.mockImplementation((data: any) => Promise.resolve({ id: 'pos1', ...data }));
+    repo.createRack.mockImplementation((data: any) => Promise.resolve({ id: 'rack1', ...data }));
 
-    const result = await service.createPosition('level1', { code: '12' } as any);
+    const result = await service.createRack('chamber1', { code: '12' } as any);
 
-    expect(result.locationCode).toBe('WH1-ZA-B2-RW1-RK3-L4-P12');
+    expect(result.locationCode).toBe('WH1-F1-CA-R12');
+  });
+
+  it('resolveOrCreateRack throws when the org has no warehouse yet', async () => {
+    repo.findDefaultWarehouse.mockResolvedValue(null);
+    await expect(service.resolveOrCreateRack('org1', '1', 'A', '12')).rejects.toThrow(BadRequestException);
+  });
+
+  it('resolveOrCreateRack auto-creates floor/chamber/rack when they do not exist', async () => {
+    repo.findDefaultWarehouse.mockResolvedValue({ id: 'wh1', code: 'WH1' });
+    repo.findFloorByCode.mockResolvedValue(null);
+    repo.createFloor.mockResolvedValue({ id: 'floor1', code: '1' });
+    repo.findChamberByCode.mockResolvedValue(null);
+    repo.createChamber.mockResolvedValue({ id: 'chamber1', code: 'A' });
+    repo.findRackByCodeInChamber.mockResolvedValue(null);
+    repo.createRack.mockImplementation((data: any) => Promise.resolve({ id: 'rack1', ...data }));
+
+    const rack = await service.resolveOrCreateRack('org1', '1', 'A', '12');
+
+    expect(rack.locationCode).toBe('WH1-F1-CA-R12');
+  });
+
+  it('resolveOrCreateRack reuses an existing floor/chamber/rack when found', async () => {
+    repo.findDefaultWarehouse.mockResolvedValue({ id: 'wh1', code: 'WH1' });
+    repo.findFloorByCode.mockResolvedValue({ id: 'floor1', code: '1' });
+    repo.findChamberByCode.mockResolvedValue({ id: 'chamber1', code: 'A' });
+    repo.findRackByCodeInChamber.mockResolvedValue({ id: 'rack1', locationCode: 'WH1-F1-CA-R12' });
+
+    const rack = await service.resolveOrCreateRack('org1', '1', 'A', '12');
+
+    expect(repo.createFloor).not.toHaveBeenCalled();
+    expect(repo.createChamber).not.toHaveBeenCalled();
+    expect(repo.createRack).not.toHaveBeenCalled();
+    expect(rack.locationCode).toBe('WH1-F1-CA-R12');
   });
 
   it('recalculates status to FULL when load reaches capacity', async () => {
-    repo.updatePosition
-      .mockResolvedValueOnce({ id: 'pos1', status: 'PARTIAL', capacity: 10 })
-      .mockResolvedValueOnce({ id: 'pos1', status: 'FULL', capacity: 10, currentLoad: 10 });
+    repo.updateRack
+      .mockResolvedValueOnce({ id: 'rack1', status: 'PARTIAL', capacity: 10 })
+      .mockResolvedValueOnce({ id: 'rack1', status: 'FULL', capacity: 10, currentLoad: 10 });
 
-    const result = await service.recalculateStatus('pos1', 10);
+    const result = await service.recalculateStatus('rack1', 10);
     expect(result.status).toBe('FULL');
   });
 
   it('recalculates status to EMPTY when load drops to zero', async () => {
-    repo.updatePosition
-      .mockResolvedValueOnce({ id: 'pos1', status: 'PARTIAL', capacity: 10 })
-      .mockResolvedValueOnce({ id: 'pos1', status: 'EMPTY', capacity: 10, currentLoad: 0 });
+    repo.updateRack
+      .mockResolvedValueOnce({ id: 'rack1', status: 'PARTIAL', capacity: 10 })
+      .mockResolvedValueOnce({ id: 'rack1', status: 'EMPTY', capacity: 10, currentLoad: 0 });
 
-    const result = await service.recalculateStatus('pos1', 0);
+    const result = await service.recalculateStatus('rack1', 0);
     expect(result.status).toBe('EMPTY');
   });
 });

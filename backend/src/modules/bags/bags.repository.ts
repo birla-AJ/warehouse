@@ -15,7 +15,7 @@ export class BagsRepository {
       skip,
       take,
       orderBy: { createdAt: 'desc' },
-      include: { farmer: true, crop: true, bagType: true, position: true },
+      include: { farmer: true, crop: true, bagType: true, rack: true },
     });
   }
 
@@ -26,14 +26,14 @@ export class BagsRepository {
   findById(id: string, organizationId: string, client: Client = this.prisma) {
     return client.bag.findFirst({
       where: { id, deletedAt: null, farmer: { organizationId } },
-      include: { farmer: true, crop: true, bagType: true, position: true },
+      include: { farmer: true, crop: true, bagType: true, rack: true },
     });
   }
 
   findByQrCode(qrCode: string, organizationId: string) {
     return this.prisma.bag.findFirst({
       where: { qrCode, farmer: { organizationId } },
-      include: { farmer: true, crop: true, bagType: true, position: true, movements: { orderBy: { createdAt: 'desc' } } },
+      include: { farmer: true, crop: true, bagType: true, rack: true, movements: { orderBy: { createdAt: 'desc' } } },
     });
   }
 
@@ -50,19 +50,15 @@ export class BagsRepository {
   }
 
   create(data: Prisma.BagCreateInput, client: Client = this.prisma) {
-    return client.bag.create({ data, include: { farmer: true, crop: true, bagType: true, position: true } });
+    return client.bag.create({ data, include: { farmer: true, crop: true, bagType: true, rack: true } });
   }
 
   update(id: string, data: Prisma.BagUpdateInput, client: Client = this.prisma) {
-    return client.bag.update({ where: { id }, data, include: { position: true } });
+    return client.bag.update({ where: { id }, data, include: { rack: true } });
   }
 
-  findPosition(id: string, client: Client = this.prisma) {
-    return client.position.findFirst({ where: { id, deletedAt: null } });
-  }
-
-  findPositionByCode(locationCode: string, client: Client = this.prisma) {
-    return client.position.findFirst({ where: { locationCode, deletedAt: null } });
+  findRack(id: string, client: Client = this.prisma) {
+    return client.rack.findFirst({ where: { id, deletedAt: null } });
   }
 
   createMovement(data: Prisma.InventoryMovementCreateInput, client: Client = this.prisma) {
@@ -154,12 +150,12 @@ export class BagsRepository {
     });
   }
 
-  /** One IN_STORAGE bag per batch, with its position — batches are always placed as a whole. */
-  findBatchPositions(organizationId: string, batchIds: string[]) {
+  /** One IN_STORAGE bag per batch, with its rack — batches are always placed as a whole. */
+  findBatchRacks(organizationId: string, batchIds: string[]) {
     return this.prisma.bag.findMany({
       where: { batchId: { in: batchIds }, status: 'IN_STORAGE', deletedAt: null, farmer: { organizationId } },
       distinct: ['batchId'],
-      include: { position: true },
+      include: { rack: { include: { chamber: { include: { floor: true } } } } },
     });
   }
 
